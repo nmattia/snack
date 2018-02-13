@@ -1,8 +1,7 @@
+# TODO: currently single out derivations append the PWD
 let
   # Use pinned packages
-  _nixpkgs = import <nixpkgs> {};
-  nixpkgs = _nixpkgs.fetchFromGitHub (_nixpkgs.lib.importJSON ./nix/src.json);
-  pkgs = import nixpkgs {config={}; overlays=[];};
+  pkgs = import (../nix) {};
 
   # Takes a (string) filepath and creates a derivation for that file (and for
   # that file only)
@@ -13,17 +12,26 @@ let
           topLevel = (builtins.toString base) + "/";
           actual = (pkgs.lib.strings.removePrefix topLevel path);
           expected = file;
-      in expected == actual;
+      in
+        (expected == actual) ||
+        (type == "directory" && (pkgs.lib.strings.hasPrefix actual expected));
+      mod = fileToModule file;
 
     in pkgs.stdenv.mkDerivation {
-      name = file;
+      name = mod;
       src = builtins.filterSource (pred file) base;
-      builder = pkgs.writeScript (file + "-builder")
+      builder = pkgs.writeScript (mod + "-builder")
       # TODO: make sure the file actually exists and that there's only one
       ''
+        echo "Singling out module ${mod} (file is ${file})"
         source $stdenv/setup
         mkdir -p $out
-        cp -a $src/* $out/
+        echo "Running: cp $src/${file} $out/${file}"
+        echo "Listing $src"
+        ls $src/**/*
+        mkdir -p $(dirname $out/${file})
+        cp $src/${file} $out/${file}
+        echo "Done: Singling out module ${mod} (file is ${file})"
       '';
     };
 
@@ -35,6 +43,13 @@ let
 
   moduleToFile = mod:
     (pkgs.lib.strings.replaceChars ["."] ["/"] mod) + ".hs";
+
+  moduleToObject = mod:
+    (pkgs.lib.strings.replaceChars ["."] ["/"] mod) + ".o";
+
+  fileToModule = file:
+    pkgs.lib.strings.removeSuffix ".hs"
+      (pkgs.lib.strings.replaceChars ["/"] ["."] file);
 
   singleOutModule = base: mod: singleOut base (moduleToFile mod);
 
@@ -66,7 +81,7 @@ let
         echo "Compiling module ${mod.moduleName}"
         # Set a tmpdir we have control over, otherwise GHC fails, not sure why
         mkdir -p tmp
-        ghc -tmpdir tmp/ ${mod.moduleName}.hs -c \
+        ghc -tmpdir tmp/ ${moduleToFile mod.moduleName} -c \
           -outputdir $out \
           2>&1
         echo "Done building module ${mod.moduleName}"
@@ -84,16 +99,17 @@ let
       go = mod: attrs0:
         let
           objectName = x:
+            # TODO: can't use "moduleName.o" because some modules get
+            # renamed to "Main.o" :/
+            # Also, hard coding the object file based on the module name feels
+            # icky
             if x.moduleIsMain
             then "Main.o"
-            else x.moduleName + ".o";
+            else moduleToObject x.moduleName;
           attrs1 = f attrs0 mod;
           f = acc: elem:
             if pkgs.lib.attrsets.hasAttr elem.moduleName acc
             then acc
-            # TODO: module path instead of module name
-            # TODO: can't use "moduleName.o" because some modules get
-            # renamed to "Main.o"
             else acc //
               { "${elem.moduleName}" =
                 "${buildModule base elem}/${objectName elem}";
@@ -120,8 +136,8 @@ let
           ];
       };
 
-  # TODO: use ghc -M for module dependencies
-  modB = makeModuleSpec "B" [] false;
-  modA = makeModuleSpec "A" [modB] true;
-
-in linkModuleObjects ./. modA
+  ## TODO: use ghc -M for module dependencies
+in
+  {
+    inherit linkModuleObjects makeModuleSpec;
+  }

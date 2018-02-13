@@ -1,0 +1,16 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -i bash
+#!nix-shell -I nixpkgs=./nix
+#!nix-shell -p snack
+#!nix-shell --pure
+# vim: ft=sh sw=2 et
+
+set -eux
+
+pushd tests/flat
+snack build
+popd
+
+pushd tests/nested
+snack build
+popd
