@@ -7,3 +7,5 @@ _snack_ is a Haskell build tool.
 ``` shell
 $ $(nix-build)/out
 ```
+
+See the [test suite](./script/test) for examples.
