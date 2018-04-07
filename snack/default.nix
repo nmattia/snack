@@ -53,6 +53,22 @@ let
 
   singleOutModule = base: mod: singleOut base (moduleToFile mod);
 
+  singleOutModulePath = base: mod:
+    "${singleOut base (moduleToFile mod)}/${moduleToFile mod}";
+
+  makeModuleSpecRec = base:
+    pkgs.lib.fix
+      (f: isMain: modName:
+        makeModuleSpec
+          modName
+          (map (f false) (listModuleDependencies base modName))
+          isMain
+      ) true;
+
+  buildFrom = base: modName: linkModuleObjects base
+    (makeModuleSpecRec base modName);
+
+
   buildModule = base: mod:
     let
       objectName = mod.moduleName;
@@ -91,6 +107,36 @@ let
         pkgs.rsync
       ];
     };
+
+  # Generate a list of haskell module names needed by the haskell file
+  listModuleDependencies = base: modName:
+    builtins.fromJSON
+    (builtins.readFile (listModuleDependenciesJSON base modName));
+
+  listModuleDependenciesJSON = base: modName:
+    pkgs.stdenv.mkDerivation
+      { name = "module-deps";
+        src = null;
+        builder = pkgs.writeScript "dependencies-json"
+        ''
+          echo "preparing dependencies"
+          source $stdenv/setup
+          # Poor man's module parser
+          FILTER=$(cat <<'EOF'
+          s/import\s*\(qualified\|\)\s*\(\S*\)\s*\(.*\)/\2/p;
+          EOF
+          )
+          JSON=$(cat <<'EOF'
+          s/\(.*\)/"\1"/;
+          $!s/$/,/;
+          EOF
+          )
+          sed -n "$FILTER" ${singleOutModulePath base modName} \
+            | (echo "["; sed "$JSON"; echo "]") > $out
+          echo "done:preparing dependencies"
+          cat $out
+        '';
+      };
 
   # Returns an attribute set where the keys are the module names and the values
   # are the '.o's
@@ -139,5 +185,10 @@ let
   ## TODO: use ghc -M for module dependencies
 in
   {
-    inherit linkModuleObjects makeModuleSpec;
+    inherit
+    buildFrom
+    linkModuleObjects
+    listModuleDependenciesJSON
+    makeModuleSpec
+    ;
   }
