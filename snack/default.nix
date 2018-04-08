@@ -1,8 +1,8 @@
 # TODO: currently single out derivations prepend the PWD to the path
-# TODO: make dependecies on GHC per-module if possible
+# TODO: mk dependecies on GHC per-module if possible
 # TODO: there are too many "does file exist"
-# TODO: make sure that filters for "base" are airtight
-# TODO: use --make everywhere ?!? NOTE: this is tricky because GHC flags
+# TODO: mk sure that filters for "base" are airtight
+# TODO: use --mk everywhere ?!? NOTE: this is tricky because GHC flags
 #   change: when a module is built with its dependencies, the flags for the
 #   dependencies change as well, which causes them to be recompiled
 pkgs:
@@ -31,7 +31,7 @@ let
       name = mod;
       src = builtins.filterSource (pred file) base;
       builder = pkgs.writeScript (mod + "-builder")
-      # TODO: make sure the file actually exists and that there's only one
+      # TODO: mk sure the file actually exists and that there's only one
       ''
         echo "Singling out module ${mod} (file is ${file})"
         source $stdenv/setup
@@ -45,7 +45,7 @@ let
       '';
     };
 
-  makeModuleSpec = modName: deps: isMain:
+  mkModuleSpec = modName: deps: isMain:
     { moduleName = modName;
       moduleIsMain = isMain;
       moduleDependencies = deps;
@@ -68,29 +68,29 @@ let
 
   # Create a module spec by following the dependencies. This assumes that the
   # specified module is a "Main" module.
-  makeModuleSpecRec = base:
+  mkModuleSpecRec = base:
     pkgs.lib.fix
       (f: isMain: modName:
-        makeModuleSpec
+        mkModuleSpec
           modName
           (map (f false) (listModuleDependencies base modName))
           isMain
       ) true;
 
   buildFrom = base: modName: linkModuleObjects base
-    (makeModuleSpecRec base modName);
+    (mkModuleSpecRec base modName);
 
   buildModule = base: mod:
     let
       objectName = mod.moduleName;
       builtDeps = map (buildModule base) mod.moduleDependencies;
       depsDirs = map (x: x + "/") builtDeps;
-      makeSymtree =
+      mkSymtree =
         if pkgs.lib.lists.length depsDirs >= 1
         # TODO: symlink instead of copy
         then "rsync -r ${pkgs.lib.strings.escapeShellArgs depsDirs} ."
         else "";
-      makeSymModule =
+      mkSymModule =
         # TODO: symlink instead of copy
         "rsync -r ${singleOutModule base mod.moduleName}/ .";
     in pkgs.stdenv.mkDerivation
@@ -102,9 +102,9 @@ let
         source $stdenv/setup
         mkdir -p $out
         echo "Creating dependencies symtree for module ${mod.moduleName}"
-        ${makeSymtree}
+        ${mkSymtree}
         echo "Creating module symlink for module ${mod.moduleName}"
-        ${makeSymModule}
+        ${mkSymModule}
         echo "Compiling module ${mod.moduleName}"
         # Set a tmpdir we have control over, otherwise GHC fails, not sure why
         mkdir -p tmp
@@ -227,6 +227,6 @@ in
     inherit
     buildFrom
     linkModuleObjects
-    makeModuleSpec
+    mkModuleSpec
     ;
   }
