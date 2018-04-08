@@ -17,14 +17,14 @@ let
   # that file only)
   singleOut = base: file:
     let
+      basePrefix = (builtins.toString base) + "/";
       pred = file: path: type:
         let
-          topLevel = (builtins.toString base) + "/";
-          actual = (pkgs.lib.strings.removePrefix topLevel path);
+          actual = (pkgs.lib.strings.removePrefix basePrefix path);
           expected = file;
-      in
-        (expected == actual) ||
-        (type == "directory" && (pkgs.lib.strings.hasPrefix actual expected));
+        in
+          (expected == actual) ||
+          (type == "directory" && (pkgs.lib.strings.hasPrefix actual expected));
       mod = fileToModule file;
 
     in pkgs.stdenv.mkDerivation {
