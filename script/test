@@ -18,3 +18,7 @@ popd
 pushd tests/dependencies
 snack build
 popd
+
+pushd tests/packages
+snack build
+popd

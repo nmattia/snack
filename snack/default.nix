@@ -1,7 +1,17 @@
-# TODO: currently single out derivations append the PWD
+# TODO: currently single out derivations prepend the PWD to the path
+# TODO: make dependecies on GHC per-module if possible
+# TODO: there are too many "does file exist"
+# TODO: make sure that filters for "base" are airtight
+# TODO: use --make everywhere ?!? NOTE: this is tricky because GHC flags
+#   change: when a module is built with its dependencies, the flags for the
+#   dependencies change as well, which causes them to be recompiled
+{ pkgs ? import (../nix) {} # nixpkgs
+, dependencies ? [] # The list of haskell dependencies, e.g. conduit, mtl, etc
+, ghcWith ? pkgs.haskellPackages.ghcWithPackages
+}:
 let
-  # Use pinned packages
-  pkgs = import (../nix) {};
+  # GHC with the package DB
+  ghc = ghcWith (ps: map (p: ps.${p}) dependencies);
 
   # Takes a (string) filepath and creates a derivation for that file (and for
   # that file only)
@@ -56,6 +66,8 @@ let
   singleOutModulePath = base: mod:
     "${singleOut base (moduleToFile mod)}/${moduleToFile mod}";
 
+  # Create a module spec by following the dependencies. This assumes that the
+  # specified module is a "Main" module.
   makeModuleSpecRec = base:
     pkgs.lib.fix
       (f: isMain: modName:
@@ -67,7 +79,6 @@ let
 
   buildFrom = base: modName: linkModuleObjects base
     (makeModuleSpecRec base modName);
-
 
   buildModule = base: mod:
     let
@@ -103,17 +114,42 @@ let
         echo "Done building module ${mod.moduleName}"
       '';
     buildInputs =
-      [ pkgs.haskellPackages.ghc
+      [ ghc
         pkgs.rsync
       ];
     };
 
-  # Generate a list of haskell module names needed by the haskell file
+  # Generate a list of haskell module names needed by the haskell file,
+  # excluding modules that are not present in this project/base
   listModuleDependencies = base: modName:
-    builtins.fromJSON
-    (builtins.readFile (listModuleDependenciesJSON base modName));
+    pkgs.lib.filter
+      (doesModuleExist base)
+      (builtins.fromJSON
+        (builtins.readFile (listAllModuleDependenciesJSON base modName))
+      );
 
-  listModuleDependenciesJSON = base: modName:
+  doesFileExist = base: filename: builtins.fromJSON (builtins.readFile
+    (
+    pkgs.stdenv.mkDerivation
+      { name = "does-file-exist";
+        src = null;
+
+        builder = pkgs.writeScript "does-file-exist"
+        ''
+        if [ ! -f ${base}/${filename} ]; then
+            echo -n "false" > $out
+        else
+            echo -n "true" > $out
+        fi
+        '';
+      }
+    ));
+  doesModuleExist = base: modName: doesFileExist base (moduleToFile modName);
+
+  # TODO: if module doesn't exist locally, don't include it
+  # Lists all module dependencies, not limited to modules existing in this
+  # project
+  listAllModuleDependenciesJSON = base: modName:
     pkgs.stdenv.mkDerivation
       { name = "module-deps";
         src = null;
@@ -145,10 +181,9 @@ let
       go = mod: attrs0:
         let
           objectName = x:
-            # TODO: can't use "moduleName.o" because some modules get
-            # renamed to "Main.o" :/
-            # Also, hard coding the object file based on the module name feels
-            # icky
+            # TODO: can't justuse "moduleName.o" because some modules get
+            # renamed to "Main.o" :/ Also, hard coding the object file based on
+            # the module name feels icky
             if x.moduleIsMain
             then "Main.o"
             else moduleToObject x.moduleName;
@@ -168,6 +203,7 @@ let
     let
       objAttrs = flattenModuleObjects base mod;
       objList = pkgs.lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
+      packageList = map (p: "-package ${p}") dependencies;
     in pkgs.stdenv.mkDerivation
       { name = "linker";
         src = null;
@@ -175,10 +211,13 @@ let
         ''
           source $stdenv/setup
           mkdir -p $out
-          ghc ${pkgs.lib.strings.escapeShellArgs objList} -o $out/out
+          ghc \
+            ${pkgs.lib.strings.escapeShellArgs packageList} \
+            ${pkgs.lib.strings.escapeShellArgs objList} \
+            -o $out/out
         '';
         buildInputs =
-          [ pkgs.haskellPackages.ghc
+          [ ghc
           ];
       };
 
@@ -188,7 +227,6 @@ in
     inherit
     buildFrom
     linkModuleObjects
-    listModuleDependenciesJSON
     makeModuleSpec
     ;
   }
