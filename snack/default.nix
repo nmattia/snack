@@ -13,14 +13,14 @@ let
   # that file only)
   singleOut = base: file:
     let
+      basePrefix = (builtins.toString base) + "/";
       pred = file: path: type:
         let
-          topLevel = (builtins.toString base) + "/";
-          actual = (pkgs.lib.strings.removePrefix topLevel path);
+          actual = (pkgs.lib.strings.removePrefix basePrefix path);
           expected = file;
-      in
-        (expected == actual) ||
-        (type == "directory" && (pkgs.lib.strings.hasPrefix actual expected));
+        in
+          (expected == actual) ||
+          (type == "directory" && (pkgs.lib.strings.hasPrefix actual expected));
       mod = fileToModule file;
       # TODO: even though we're doing a lot of cleaning, there's sitll some
       # 'does-file-exist' happening
