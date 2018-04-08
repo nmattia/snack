@@ -77,8 +77,8 @@ let
           isMain
       ) true;
 
-  buildFrom = base: modName: linkModuleObjects base
-    (mkModuleSpecRec base modName);
+  buildFrom = { name, src }: linkModuleObjects src
+    (mkModuleSpecRec src name);
 
   buildModule = base: mod:
     let

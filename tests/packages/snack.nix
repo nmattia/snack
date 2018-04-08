@@ -2,4 +2,7 @@
 with (import ../../nix {}).snack-lib-with
   { dependencies = ["conduit"] ;
   };
-buildFrom ./src "Foo"
+buildFrom {
+  name = "Foo";
+  src = ./src;
+}
