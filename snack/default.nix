@@ -6,13 +6,8 @@
 #   change: when a module is built with its dependencies, the flags for the
 #   dependencies change as well, which causes them to be recompiled
 { pkgs ? import (../nix) {} # nixpkgs
-, dependencies ? [] # The list of haskell dependencies, e.g. conduit, mtl, etc
-, ghcWith ? pkgs.haskellPackages.ghcWithPackages
 }:
 let
-  # GHC with the package DB
-  ghc = ghcWith (ps: map (p: ps.${p}) dependencies);
-
   # Takes a (string) filepath and creates a derivation for that file (and for
   # that file only)
   singleOut = base: file:
@@ -77,13 +72,10 @@ let
           isMain
       ) true;
 
-  buildFrom = base: modName: linkModuleObjects base
-    (makeModuleSpecRec base modName);
-
-  buildModule = base: mod:
+  buildModule = ghc: base: mod:
     let
       objectName = mod.moduleName;
-      builtDeps = map (buildModule base) mod.moduleDependencies;
+      builtDeps = map (buildModule ghc base) mod.moduleDependencies;
       depsDirs = map (x: x + "/") builtDeps;
       makeSymtree =
         if pkgs.lib.lists.length depsDirs >= 1
@@ -176,7 +168,7 @@ let
 
   # Returns an attribute set where the keys are the module names and the values
   # are the '.o's
-  flattenModuleObjects = base: mod':
+  flattenModuleObjects = ghc: base: mod':
     let
       go = mod: attrs0:
         let
@@ -193,15 +185,16 @@ let
             then acc
             else acc //
               { "${elem.moduleName}" =
-                "${buildModule base elem}/${objectName elem}";
+                "${buildModule ghc base elem}/${objectName elem}";
               };
         in
           pkgs.lib.lists.foldl f attrs1 mod.moduleDependencies;
     in go mod' {};
 
-  linkModuleObjects = base: mod:
+  # TODO: it's sad that we pass ghcWithDeps + dependencies
+  linkModuleObjects = ghc: dependencies: base: mod:
     let
-      objAttrs = flattenModuleObjects base mod;
+      objAttrs = flattenModuleObjects ghc base mod;
       objList = pkgs.lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
       packageList = map (p: "-package ${p}") dependencies;
     in pkgs.stdenv.mkDerivation
@@ -211,22 +204,65 @@ let
         ''
           source $stdenv/setup
           mkdir -p $out
-          ghc \
+          ${ghc}/bin/ghc \
             ${pkgs.lib.strings.escapeShellArgs packageList} \
             ${pkgs.lib.strings.escapeShellArgs objList} \
             -o $out/out
         '';
-        buildInputs =
-          [ ghc
-          ];
       };
+
+  # Returns a list of all module names depended on in the module spec
+  allModuleNames = modSpec:
+    [ modSpec.moduleName ] ++ (pkgs.lib.lists.concatMap allModuleNames modSpec.moduleDependencies);
+
+  # Write a new ghci executable that loads all the modules defined in the
+  # module spec
+  ghciExecutable = ghc: base: modSpec:
+    let
+      ghciArgs = pkgs.lib.strings.escapeShellArgs absoluteModuleFiles;
+      absoluteModuleFiles = map prependBase moduleFiles;
+      moduleFiles = map moduleToFile modules;
+      modules = allModuleNames modSpec;
+      prependBase = f: builtins.toString base + "/${f}";
+    in
+      pkgs.symlinkJoin
+        { name = "ghci";
+          paths = [ ghc ];
+          postBuild =
+          ''
+            source $stdenv/setup
+            wrapProgram "$out/bin/ghci" \
+              --add-flags "${ghciArgs}"
+          '';
+          buildInputs = [pkgs.makeWrapper];
+        };
+
+  snack = executable:
+    {
+      build =
+        let
+          ghc = pkgs.haskellPackages.ghcWithPackages
+            (ps: map (p: ps.${p}) deps);
+          deps = executable.dependencies;
+          base = executable.src;
+          mainModName = executable.main;
+        in linkModuleObjects ghc deps base (makeModuleSpecRec base mainModName);
+      ghci =
+        let
+          ghc = pkgs.haskellPackages.ghcWithPackages
+            (ps: map (p: ps.${p}) deps);
+          deps = executable.dependencies;
+          base = executable.src;
+          mainModName = executable.main;
+        in ghciExecutable ghc base (makeModuleSpecRec base mainModName);
+    };
+
+
 
   ## TODO: use ghc -M for module dependencies
 in
   {
     inherit
-    buildFrom
-    linkModuleObjects
-    makeModuleSpec
+    snack
     ;
   }

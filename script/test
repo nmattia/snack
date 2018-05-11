@@ -7,18 +7,6 @@
 
 set -eux
 
-pushd tests/flat
-snack build
-popd
-
-pushd tests/nested
-snack build
-popd
-
-pushd tests/dependencies
-snack build
-popd
-
 pushd tests/packages
 snack build
 popd
