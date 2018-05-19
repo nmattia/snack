@@ -1,8 +1,8 @@
 let
   pkgs = import ../../nix {};
-  snack = pkgs.snack-lib.snack;
+  snack = pkgs.snack-lib;
 in
-  snack
+  snack.executable
     { main = "Main";
       src = ./.;
       dependencies = ["file-embed"];

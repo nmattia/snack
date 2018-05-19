@@ -250,24 +250,24 @@ let
           buildInputs = [pkgs.makeWrapper];
         };
 
-  snack = executable:
+  executable = descr:
       let
         ghc = pkgs.haskellPackages.ghcWithPackages
           (ps: map (p: ps.${p}) deps);
-        deps = executable.dependencies;
+        deps = descr.dependencies;
         ghcOpts =
-          if (builtins.hasAttr "ghc-options" executable)
-          then executable.ghc-options
+          if (builtins.hasAttr "ghc-options" descr)
+          then descr.ghc-options
           else [];
-        base = executable.src;
+        base = descr.src;
         foo =
-        if (builtins.hasAttr "extra-files" executable)
+        if (builtins.hasAttr "extra-files" descr)
         then
-          if builtins.isList executable.extra-files
-          then (_x: executable.extra-files)
-          else executable.extra-files
+          if builtins.isList descr.extra-files
+          then (_x: descr.extra-files)
+          else descr.extra-files
         else (x: []);
-        mainModName = executable.main;
+        mainModName = descr.main;
       in
     {
       build =
@@ -282,6 +282,6 @@ let
 in
   {
     inherit
-    snack
+    executable
     ;
   }
