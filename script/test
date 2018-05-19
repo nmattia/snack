@@ -10,3 +10,7 @@ set -eux
 pushd tests/packages
 snack build
 popd
+
+pushd tests/template-haskell
+snack build
+popd

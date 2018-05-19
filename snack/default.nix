@@ -1,4 +1,5 @@
 # TODO: currently single out derivations prepend the PWD to the path
+# TODO: commented out modules (-- Foo.Module) aren't parsed properly
 # TODO: make dependecies on GHC per-module if possible
 # TODO: there are too many "does file exist"
 # TODO: make sure that filters for "base" are airtight
@@ -40,10 +41,11 @@ let
       '';
     };
 
-  makeModuleSpec = modName: deps: isMain:
+  makeModuleSpec = modName: deps: isMain: modFiles:
     { moduleName = modName;
       moduleIsMain = isMain;
       moduleDependencies = deps;
+      moduleFiles = modFiles;
     };
 
   moduleToFile = mod:
@@ -63,13 +65,14 @@ let
 
   # Create a module spec by following the dependencies. This assumes that the
   # specified module is a "Main" module.
-  makeModuleSpecRec = base:
+  makeModuleSpecRec = base: filesByModuleName:
     pkgs.lib.fix
       (f: isMain: modName:
         makeModuleSpec
           modName
           (map (f false) (listModuleDependencies base modName))
           isMain
+          (filesByModuleName modName)
       ) true;
 
   buildModule = ghc: base: mod:
@@ -81,6 +84,11 @@ let
         if pkgs.lib.lists.length depsDirs >= 1
         # TODO: symlink instead of copy
         then "rsync -r ${pkgs.lib.strings.escapeShellArgs depsDirs} ."
+        else "";
+      makeFilesTree =
+        if pkgs.lib.lists.length mod.moduleFiles >= 1
+        # TODO: symlink instead of copy
+        then "rsync -r ${pkgs.lib.strings.escapeShellArgs mod.moduleFiles} ."
         else "";
       makeSymModule =
         # TODO: symlink instead of copy
@@ -97,6 +105,8 @@ let
         ${makeSymtree}
         echo "Creating module symlink for module ${mod.moduleName}"
         ${makeSymModule}
+        echo "Creating files symlink for module ${mod.moduleName}"
+        ${makeFilesTree}
         echo "Compiling module ${mod.moduleName}"
         # Set a tmpdir we have control over, otherwise GHC fails, not sure why
         mkdir -p tmp
@@ -192,10 +202,11 @@ let
     in go mod' {};
 
   # TODO: it's sad that we pass ghcWithDeps + dependencies
-  linkModuleObjects = ghc: dependencies: base: mod:
+  linkModuleObjects = ghc: ghcOpts: dependencies: base: mod:
     let
       objAttrs = flattenModuleObjects ghc base mod;
       objList = pkgs.lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
+      ghcOptsArgs = pkgs.lib.strings.escapeShellArgs ghcOpts;
       packageList = map (p: "-package ${p}") dependencies;
     in pkgs.stdenv.mkDerivation
       { name = "linker";
@@ -207,6 +218,7 @@ let
           ${ghc}/bin/ghc \
             ${pkgs.lib.strings.escapeShellArgs packageList} \
             ${pkgs.lib.strings.escapeShellArgs objList} \
+            ${ghcOptsArgs} \
             -o $out/out
         '';
       };
@@ -217,9 +229,10 @@ let
 
   # Write a new ghci executable that loads all the modules defined in the
   # module spec
-  ghciExecutable = ghc: base: modSpec:
+  ghciExecutable = ghc: ghcOpts: base: modSpec:
     let
-      ghciArgs = pkgs.lib.strings.escapeShellArgs absoluteModuleFiles;
+      ghciArgs = pkgs.lib.strings.escapeShellArgs
+        (ghcOpts ++ absoluteModuleFiles);
       absoluteModuleFiles = map prependBase moduleFiles;
       moduleFiles = map moduleToFile modules;
       modules = allModuleNames modSpec;
@@ -238,23 +251,29 @@ let
         };
 
   snack = executable:
+      let
+        ghc = pkgs.haskellPackages.ghcWithPackages
+          (ps: map (p: ps.${p}) deps);
+        deps = executable.dependencies;
+        ghcOpts =
+          if (builtins.hasAttr "ghc-options" executable)
+          then executable.ghc-options
+          else [];
+        base = executable.src;
+        foo =
+        if (builtins.hasAttr "extra-files" executable)
+        then
+          if builtins.isList executable.extra-files
+          then (_x: executable.extra-files)
+          else executable.extra-files
+        else (x: []);
+        mainModName = executable.main;
+      in
     {
       build =
-        let
-          ghc = pkgs.haskellPackages.ghcWithPackages
-            (ps: map (p: ps.${p}) deps);
-          deps = executable.dependencies;
-          base = executable.src;
-          mainModName = executable.main;
-        in linkModuleObjects ghc deps base (makeModuleSpecRec base mainModName);
+        linkModuleObjects ghc ghcOpts deps base (makeModuleSpecRec base foo mainModName);
       ghci =
-        let
-          ghc = pkgs.haskellPackages.ghcWithPackages
-            (ps: map (p: ps.${p}) deps);
-          deps = executable.dependencies;
-          base = executable.src;
-          mainModName = executable.main;
-        in ghciExecutable ghc base (makeModuleSpecRec base mainModName);
+        ghciExecutable ghc ghcOpts base (makeModuleSpecRec base foo mainModName);
     };
 
 
