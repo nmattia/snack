@@ -85,40 +85,37 @@ let
         # TODO: symlink instead of copy
         then "rsync -r ${pkgs.lib.strings.escapeShellArgs depsDirs} ."
         else "";
-      makeFilesTree =
-        if pkgs.lib.lists.length mod.moduleFiles >= 1
-        # TODO: symlink instead of copy
-        then "rsync -r ${pkgs.lib.strings.escapeShellArgs mod.moduleFiles} ."
-        else "";
       makeSymModule =
         # TODO: symlink instead of copy
         "rsync -r ${singleOutModule base mod.moduleName}/ .";
     in pkgs.stdenv.mkDerivation
     { name = objectName;
-      src = null;
-      builder = pkgs.writeScript "build-${objectName}"
-      ''
-        echo "Building module ${mod.moduleName}"
-        source $stdenv/setup
-        mkdir -p $out
-        echo "Creating dependencies symtree for module ${mod.moduleName}"
-        ${makeSymtree}
-        echo "Creating module symlink for module ${mod.moduleName}"
-        ${makeSymModule}
-        echo "Creating files symlink for module ${mod.moduleName}"
-        ${makeFilesTree}
-        echo "Compiling module ${mod.moduleName}"
-        # Set a tmpdir we have control over, otherwise GHC fails, not sure why
-        mkdir -p tmp
-        ghc -tmpdir tmp/ ${moduleToFile mod.moduleName} -c \
-          -outputdir $out \
-          2>&1
-        echo "Done building module ${mod.moduleName}"
-      '';
-    buildInputs =
-      [ ghc
-        pkgs.rsync
-      ];
+      src = builtins.filterSource (p: t:
+        pkgs.lib.lists.elem p (map toString mod.moduleFiles)
+      ) base;
+      phases =
+        [ "unpackPhase" "buildPhase" ];
+      buildPhase =
+        ''
+          echo "Building module ${mod.moduleName}"
+          mkdir -p $out
+          echo "Creating dependencies symtree for module ${mod.moduleName}"
+          ${makeSymtree}
+          echo "Creating module symlink for module ${mod.moduleName}"
+          ${makeSymModule}
+          echo "Compiling module ${mod.moduleName}"
+          # Set a tmpdir we have control over, otherwise GHC fails, not sure why
+          mkdir -p tmp
+          ghc -tmpdir tmp/ ${moduleToFile mod.moduleName} -c \
+            -outputdir $out \
+            2>&1
+          echo "Done building module ${mod.moduleName}"
+        '';
+
+      buildInputs =
+        [ ghc
+          pkgs.rsync
+        ];
     };
 
   # Generate a list of haskell module names needed by the haskell file,
@@ -276,9 +273,6 @@ let
         ghciExecutable ghc ghcOpts base (makeModuleSpecRec base foo mainModName);
     };
 
-
-
-  ## TODO: use ghc -M for module dependencies
 in
   {
     inherit
