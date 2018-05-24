@@ -1,7 +1,7 @@
 #!/usr/bin/env nix-shell
 #!nix-shell -i bash
 #!nix-shell -I nixpkgs=./nix
-#!nix-shell -p snack
+#!nix-shell -p snack.snack-exe
 #!nix-shell --pure
 # vim: ft=sh sw=2 et
 
@@ -15,8 +15,8 @@ pushd tests/template-haskell
 snack build
 popd
 
-pushd tests/template-haskell-2/code
-snack build
+pushd tests/template-haskell-2
+snack build -f code/snack.nix
 popd
 
 pushd tests/template-haskell-3
