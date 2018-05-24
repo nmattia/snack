@@ -14,3 +14,11 @@ popd
 pushd tests/template-haskell
 snack build
 popd
+
+pushd tests/template-haskell-2/code
+snack build
+popd
+
+pushd tests/template-haskell-3
+snack build
+popd

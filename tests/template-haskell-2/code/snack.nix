@@ -1,11 +1,11 @@
 let
-  pkgs = import ../../nix {};
+  pkgs = import ../../../nix {};
   snack = pkgs.snack-lib;
 in
   snack.executable
     { main = "Main";
       src = ./.;
       dependencies = ["file-embed"];
-      extra-files =
-        (modName: if modName == "Main" then [ "foo.txt" ] else []);
+      extra-directories =
+        (modName: if modName == "Main" then [ ../. ] else []);
     }

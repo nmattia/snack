@@ -22,10 +22,13 @@ let
         (expected == actual) ||
         (type == "directory" && (pkgs.lib.strings.hasPrefix actual expected));
       mod = fileToModule file;
+      # TODO: even though we're doing a lot of cleaning, there's sitll some
+      # 'does-file-exist' happening
+      src0 = pkgs.lib.cleanSource base;
 
     in pkgs.stdenv.mkDerivation {
       name = mod;
-      src = builtins.filterSource (pred file) base;
+      src = pkgs.lib.cleanSourceWith  { filter = (pred file); src = src0; };
       builder = pkgs.writeScript (mod + "-builder")
       # TODO: make sure the file actually exists and that there's only one
       ''
@@ -41,11 +44,12 @@ let
       '';
     };
 
-  makeModuleSpec = modName: deps: isMain: modFiles:
+  makeModuleSpec = modName: deps: isMain: modFiles: modDirs:
     { moduleName = modName;
       moduleIsMain = isMain;
       moduleDependencies = deps;
       moduleFiles = modFiles;
+      moduleDirectories = modDirs;
     };
 
   moduleToFile = mod:
@@ -65,7 +69,7 @@ let
 
   # Create a module spec by following the dependencies. This assumes that the
   # specified module is a "Main" module.
-  makeModuleSpecRec = base: filesByModuleName:
+  makeModuleSpecRec = base: filesByModuleName: dirsByModuleName:
     pkgs.lib.fix
       (f: isMain: modName:
         makeModuleSpec
@@ -73,6 +77,7 @@ let
           (map (f false) (listModuleDependencies base modName))
           isMain
           (filesByModuleName modName)
+          (dirsByModuleName modName)
       ) true;
 
   buildModule = ghc: base: mod:
@@ -88,11 +93,42 @@ let
       makeSymModule =
         # TODO: symlink instead of copy
         "rsync -r ${singleOutModule base mod.moduleName}/ .";
+
+
+
+
+      pred = file: path: type:
+        let
+          topLevel = (builtins.toString base) + "/";
+          actual = (pkgs.lib.strings.removePrefix topLevel path);
+          expected = file;
+      in
+        (expected == actual) ||
+        (type == "directory" && (pkgs.lib.strings.hasPrefix actual expected));
+
+
+
+      extraFiles = builtins.filterSource
+        (p: t:
+          pkgs.lib.lists.length
+            (
+            let
+              topLevel = (builtins.toString base) + "/";
+              actual = pkgs.lib.strings.removePrefix topLevel p;
+            in
+              pkgs.lib.filter (expected:
+                (expected == actual) ||
+                (t == "directory" && (pkgs.lib.strings.hasPrefix actual expected))
+                )
+                mod.moduleFiles
+            ) >= 1
+        ) base;
     in pkgs.stdenv.mkDerivation
     { name = objectName;
-      src = builtins.filterSource (p: t:
-        pkgs.lib.lists.elem p (map toString mod.moduleFiles)
-      ) base;
+      src = pkgs.symlinkJoin
+        { name = "extra-files";
+          paths = [ extraFiles ] ++ mod.moduleDirectories;
+        };
       phases =
         [ "unpackPhase" "buildPhase" ];
       buildPhase =
@@ -129,20 +165,19 @@ let
 
   doesFileExist = base: filename: builtins.fromJSON (builtins.readFile
     (
-    pkgs.stdenv.mkDerivation
-      { name = "does-file-exist";
-        src = null;
+    pkgs.runCommand "does-file-exist" {}
 
-        builder = pkgs.writeScript "does-file-exist"
-        ''
-        if [ ! -f ${base}/${filename} ]; then
-            echo -n "false" > $out
-        else
-            echo -n "true" > $out
-        fi
-        '';
-      }
-    ));
+      ''
+      if [ ! -f ${base}/${filename} ]; then
+          echo -n "false" > $out
+      else
+          echo -n "true" > $out
+      fi
+      ''
+    )
+    );
+
+
   doesModuleExist = base: modName: doesFileExist base (moduleToFile modName);
 
   # TODO: if module doesn't exist locally, don't include it
@@ -256,21 +291,43 @@ let
           if (builtins.hasAttr "ghc-options" descr)
           then descr.ghc-options
           else [];
-        base = descr.src;
-        foo =
-        if (builtins.hasAttr "extra-files" descr)
-        then
-          if builtins.isList descr.extra-files
-          then (_x: descr.extra-files)
-          else descr.extra-files
-        else (x: []);
+        base = descr.src ; # pkgs.lib.cleanSource descr.src;
+        extraFiles =
+          if (builtins.hasAttr "extra-files" descr)
+          then
+            if builtins.isList descr.extra-files
+            then (_x: descr.extra-files)
+            else descr.extra-files
+          else (x: []);
+        #if (builtins.hasAttr "extra-files" descr)
+        #then
+          #if builtins.isList descr.extra-files
+          #then (_x: descr.extra-files)
+          #else descr.extra-files
+        #else (x: []);
+        extraDirs =
+          if (builtins.hasAttr "extra-directories" descr)
+          then
+            if builtins.isList descr.extra-directories
+            then (_x: descr.extra-directories)
+            else descr.extra-directories
+          else (x: []);
         mainModName = descr.main;
       in
     {
       build =
-        linkModuleObjects ghc ghcOpts deps base (makeModuleSpecRec base foo mainModName);
+        linkModuleObjects
+          ghc
+          ghcOpts
+          deps
+          base
+          (makeModuleSpecRec base extraFiles extraDirs mainModName);
       ghci =
-        ghciExecutable ghc ghcOpts base (makeModuleSpecRec base foo mainModName);
+        ghciExecutable
+          ghc
+          ghcOpts
+          base
+          (makeModuleSpecRec base extraFiles extraDirs mainModName);
     };
 
 in
