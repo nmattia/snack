@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+NIX_BUILD=nix-build
+SNACK_NIX=snack.nix
+
+while [[ $# -gt 0 ]]
+do
+  key="$1"
+
+  case $key in
+    -f|--snack-nix)
+      SNACK_NIX="$2"
+      shift
+      shift
+      ;;
+    run|build|ghci)
+      COMMAND="$1"
+      shift # past argument
+      ;;
+    *)    # unknown option
+      echo "unknown option: $1"
+      exit 1
+      ;;
+  esac
+done
+echo "snack nix: $SNACK_NIX"
+echo "command: $COMMAND"
+
+case $COMMAND in
+  build)
+    "$NIX_BUILD" --no-out-link -A build $SNACK_NIX
+    ;;
+  ghci)
+    res=$("$NIX_BUILD" --no-out-link -A ghci $SNACK_NIX)
+    $res/bin/ghci
+    ;;
+  run)
+    res=$("$NIX_BUILD" --no-out-link -A build $SNACK_NIX)
+    echo "running $res"
+    $res/out
+    ;;
+esac
