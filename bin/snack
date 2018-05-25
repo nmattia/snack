@@ -1,8 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+## Defaults
+
 NIX_BUILD=nix-build
 SNACK_NIX=snack.nix
+COMMAND=
+
+## Functions
+
+log_error() {
+  echo "ERROR: $*" >&2
+}
+
+show_usage() {
+  cat <<USAGE
+Usage: snack [options] <command>
+
+Snack is a Haskell build tool
+
+Options:
+  -f | --snack-nix <PATH>: sets the path ot the "snack.nix" file. Default: "./snack.nix"
+  -h | --help: Shows this help
+
+Commands:
+  run: builds and executes
+  build: builds
+  ghci: builds and loads in ghci
+USAGE
+}
+
+## Main
 
 while [[ $# -gt 0 ]]; do
   key="$1"
@@ -12,6 +40,10 @@ while [[ $# -gt 0 ]]; do
       SNACK_NIX="$2"
       shift
       shift
+      ;;
+    -h | --help)
+      show_usage
+      exit 0
       ;;
     run | build | ghci)
       COMMAND="$1"
@@ -23,6 +55,13 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -z "$COMMAND" ]]; then
+  log_error "missing <command>\n"
+  show_usage
+  exit 1
+fi
+
 echo "snack nix: $SNACK_NIX"
 echo "command: $COMMAND"
 
