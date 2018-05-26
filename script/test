@@ -2,23 +2,50 @@
 #!nix-shell -i bash
 #!nix-shell -I nixpkgs=./nix
 #!nix-shell -p snack.snack-exe
+#!nix-shell -p shfmt
 #!nix-shell --pure
 # vim: ft=sh sw=2 et
 
-set -eux
+set -euo pipefail
 
+## Functions
+
+banner() {
+    echo "--- $*"
+}
+
+fail() {
+  echo "ERROR: $*"
+  exit 1
+}
+
+## Main
+
+cd "$(dirname "$0")/.."
+
+banner "Test packages"
 pushd tests/packages
 snack build
 popd
 
+banner "Test Template Haskell"
 pushd tests/template-haskell
 snack build
 popd
 
+banner "Test Template Haskell 2"
 pushd tests/template-haskell-2
 snack build -f code/snack.nix
 popd
 
+banner "Test Template Haskell 3"
 pushd tests/template-haskell-3
 snack build
 popd
+
+banner "Test stack-exe formatting"
+list=$(shfmt -i 2 -l bin/snack)
+if [[ -n "$list" ]]; then
+  fail "Please apply script/snack-fmt to format bin/snack"
+fi
+echo OK
