@@ -8,4 +8,3 @@
       ["NIX_BUILD=${pkgs.nix}/bin/nix-build"]
       (builtins.readFile ./bin/snack));
 }
-

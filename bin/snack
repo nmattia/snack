@@ -62,9 +62,6 @@ if [[ -z "$COMMAND" ]]; then
   exit 1
 fi
 
-echo "snack nix: $SNACK_NIX"
-echo "command: $COMMAND"
-
 case $COMMAND in
   build)
     "$NIX_BUILD" --no-out-link -A build "$SNACK_NIX"
@@ -75,7 +72,6 @@ case $COMMAND in
     ;;
   run)
     res=$("$NIX_BUILD" --no-out-link -A build "$SNACK_NIX")
-    echo "running $res"
     "$res/out"
     ;;
 esac

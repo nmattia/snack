@@ -11,8 +11,27 @@ set -euo pipefail
 ## Functions
 
 banner() {
+    echo
     echo "--- $*"
 }
+
+capture_io() {
+    OUT_FILE="$1"
+
+    cat <<END_HEREDOC
+import GHC.IO.Handle
+import System.IO
+old_stdout <- hDuplicate stdout
+:{
+withFile "$OUT_FILE" WriteMode $ \\h -> do
+    hDuplicateTo h stdout
+    $2
+    hDuplicateTo old_stdout stdout
+:}
+END_HEREDOC
+}
+
+export -f capture_io
 
 fail() {
   echo "ERROR: $*"
@@ -25,22 +44,22 @@ cd "$(dirname "$0")/.."
 
 banner "Test packages"
 pushd tests/packages
-snack build
+./test
 popd
 
 banner "Test Template Haskell"
 pushd tests/template-haskell
-snack build
+./test
 popd
 
 banner "Test Template Haskell 2"
 pushd tests/template-haskell-2
-snack build -f code/snack.nix
+./test
 popd
 
 banner "Test Template Haskell 3"
 pushd tests/template-haskell-3
-snack build
+./test
 popd
 
 banner "Test stack-exe formatting"
