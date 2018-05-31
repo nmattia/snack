@@ -1,3 +1,6 @@
+[![Build Status](https://travis-ci.org/nmattia/snack.svg?branch=master)](https://travis-ci.org/nmattia/snack)
+[![built with nix](https://builtwithnix.org/badge.svg)](https://builtwithnix.org)
+
 # Snack
 
 _snack_ is a Haskell build tool.
