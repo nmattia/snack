@@ -93,10 +93,6 @@ let
       makeSymModule =
         # TODO: symlink instead of copy
         "rsync -r ${singleOutModule base mod.moduleName}/ .";
-
-
-
-
       pred = file: path: type:
         let
           topLevel = (builtins.toString base) + "/";
@@ -259,6 +255,13 @@ let
   allModuleNames = modSpec:
     [ modSpec.moduleName ] ++ (pkgs.lib.lists.concatMap allModuleNames modSpec.moduleDependencies);
 
+  allModuleDirectories = modSpec:
+    pkgs.lib.lists.concatLists
+    (
+    [ modSpec.moduleDirectories ]
+    ++ (pkgs.lib.lists.concatMap allModuleDirectories modSpec.moduleDependencies)
+    );
+
   # Write a new ghci executable that loads all the modules defined in the
   # module spec
   ghciExecutable = ghc: ghcOpts: base: modSpec:
@@ -268,19 +271,40 @@ let
       absoluteModuleFiles = map prependBase moduleFiles;
       moduleFiles = map moduleToFile modules;
       modules = allModuleNames modSpec;
+      dirs = allModuleDirectories modSpec;
       prependBase = f: builtins.toString base + "/${f}";
+      newGhc =
+        pkgs.symlinkJoin
+          { name = "ghci";
+            paths = [ ghc ];
+            postBuild =
+            ''
+              wrapProgram "$out/bin/ghci" \
+                --add-flags "${ghciArgs}"
+            '';
+            buildInputs = [pkgs.makeWrapper];
+          };
     in
-      pkgs.symlinkJoin
-        { name = "ghci";
-          paths = [ ghc ];
-          postBuild =
-          ''
-            source $stdenv/setup
-            wrapProgram "$out/bin/ghci" \
-              --add-flags "${ghciArgs}"
-          '';
-          buildInputs = [pkgs.makeWrapper];
-        };
+      # This symlinks the extra dirs to $PWD for GHCi to work
+      pkgs.writeScript "ghci-with-files"
+        ''
+        set -euo pipefail
+
+        TRAPS=""
+        for i in ${pkgs.lib.strings.escapeShellArgs dirs}; do
+          if [ "$i" != "$PWD" ]; then
+          for j in $(find "$i" ! -path "$i"); do
+            file=$(basename $j)
+            echo "Temporarily symlinking $j to $file..."
+            ln -s $j $file
+            TRAPS="rm $file ; $TRAPS"
+            trap "$TRAPS" EXIT
+            echo "done."
+          done
+          fi
+        done
+        ${newGhc}/bin/ghci
+        '';
 
   executable = descr:
       let
@@ -298,20 +322,14 @@ let
             if builtins.isList descr.extra-files
             then (_x: descr.extra-files)
             else descr.extra-files
-          else (x: []);
-        #if (builtins.hasAttr "extra-files" descr)
-        #then
-          #if builtins.isList descr.extra-files
-          #then (_x: descr.extra-files)
-          #else descr.extra-files
-        #else (x: []);
+          else (_x: []);
         extraDirs =
           if (builtins.hasAttr "extra-directories" descr)
           then
             if builtins.isList descr.extra-directories
             then (_x: descr.extra-directories)
             else descr.extra-directories
-          else (x: []);
+          else (_x: []);
         mainModName = descr.main;
       in
     {
