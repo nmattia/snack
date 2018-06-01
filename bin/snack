@@ -68,7 +68,7 @@ case $COMMAND in
     ;;
   ghci)
     res=$("$NIX_BUILD" --no-out-link -A ghci "$SNACK_NIX")
-    "$res/bin/ghci"
+    "$res"
     ;;
   run)
     res=$("$NIX_BUILD" --no-out-link -A build "$SNACK_NIX")
