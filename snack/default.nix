@@ -159,20 +159,25 @@ let
         (builtins.readFile (listAllModuleDependenciesJSON base modName))
       );
 
-  doesFileExist = base: filename: builtins.fromJSON (builtins.readFile
-    (
-    pkgs.runCommand "does-file-exist" {}
+  doesFileExist = base: filename:
+    pkgs.lib.lists.elem filename (listFilesInDir base);
 
-      ''
-      if [ ! -f ${base}/${filename} ]; then
-          echo -n "false" > $out
-      else
-          echo -n "true" > $out
-      fi
-      ''
-    )
-    );
-
+  listFilesInDir = dir:
+  let
+    go = dir: dirName:
+      pkgs.lib.lists.concatLists
+      (
+        pkgs.lib.attrsets.mapAttrsToList
+          (path: ty:
+            if ty == "directory"
+            then
+              go "${dir}/${path}" "${dirName}${path}/"
+            else
+              [ "${dirName}${path}" ]
+          )
+          (builtins.readDir dir)
+      );
+  in go dir "";
 
   doesModuleExist = base: modName: doesFileExist base (moduleToFile modName);
 
