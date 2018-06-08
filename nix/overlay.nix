@@ -1,5 +1,5 @@
 _: pkgs: {
-  snack-lib = pkgs.callPackage ../snack/default.nix { };
+  snack-lib = pkgs.callPackage ../snack-lib/default.nix { };
   snack-exe = pkgs.writeScriptBin
     "snack"
     (builtins.replaceStrings
