@@ -1,6 +1,6 @@
 { nixpkgs ? import ./nixpkgs }:
 import nixpkgs {
-  config = { allowUnfree = true; };
+  config = { };
   overlays = [
     (self: super: { snack = import ../. {}; })
   ];
