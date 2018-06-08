@@ -2,6 +2,6 @@
 import nixpkgs {
   config = { };
   overlays = [
-    (self: super: { snack = import ../. {}; })
+    (import ./overlay.nix)
   ];
 }

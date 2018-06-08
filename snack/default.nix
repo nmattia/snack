@@ -6,8 +6,7 @@
 # TODO: use --make everywhere ?!? NOTE: this is tricky because GHC flags
 #   change: when a module is built with its dependencies, the flags for the
 #   dependencies change as well, which causes them to be recompiled
-{ pkgs ? import (../nix) {} # nixpkgs
-}:
+{ pkgs }:
 let
   # Takes a (string) filepath and creates a derivation for that file (and for
   # that file only)
