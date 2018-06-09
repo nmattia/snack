@@ -86,10 +86,11 @@ let
           (dirsByModuleName modName)
       ) true;
 
-  buildModule = ghc: base: mod:
+  buildModule = ghc: ghcOpts: base: mod:
     let
+      ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
       objectName = mod.moduleName;
-      builtDeps = map (buildModule ghc base) mod.moduleDependencies;
+      builtDeps = map (buildModule ghc ghcOpts base) mod.moduleDependencies;
       depsDirs = map (x: x + "/") builtDeps;
       makeSymtree =
         if lib.lists.length depsDirs >= 1
@@ -146,6 +147,7 @@ let
           mkdir -p tmp
           ghc -tmpdir tmp/ ${moduleToFile mod.moduleName} -c \
             -outputdir $out \
+            ${ghcOptsArgs} \
             2>&1
           echo "Done building module ${mod.moduleName}"
         '';
@@ -217,7 +219,7 @@ let
 
   # Returns an attribute set where the keys are the module names and the values
   # are the '.o's
-  flattenModuleObjects = ghc: base: mod':
+  flattenModuleObjects = ghc: ghcOpts: base: mod':
     let
       go = mod: attrs0:
         let
@@ -234,7 +236,7 @@ let
             then acc
             else acc //
               { "${elem.moduleName}" =
-                "${buildModule ghc base elem}/${objectName elem}";
+                "${buildModule ghc ghcOpts base elem}/${objectName elem}";
               };
         in
           lib.lists.foldl f attrs1 mod.moduleDependencies;
@@ -243,7 +245,7 @@ let
   # TODO: it's sad that we pass ghcWithDeps + dependencies
   linkModuleObjects = ghc: ghcOpts: dependencies: base: mod:
     let
-      objAttrs = flattenModuleObjects ghc base mod;
+      objAttrs = flattenModuleObjects ghc ghcOpts base mod;
       objList = lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
       ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
       packageList = map (p: "-package ${p}") dependencies;
