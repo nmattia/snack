@@ -306,31 +306,28 @@ let
         ${newGhc}/bin/ghci
         '';
 
-  executable = descr:
+  executable =
+    { main
+    , src
+    , dependencies ? []
+    , ghc-options ? []
+    , extra-files ? []
+    , extra-directories ? []
+    }:
       let
+        deps = dependencies;
         ghc = haskellPackages.ghcWithPackages
           (ps: map (p: ps.${p}) deps);
-        deps = descr.dependencies;
-        ghcOpts =
-          if (builtins.hasAttr "ghc-options" descr)
-          then descr.ghc-options
-          else [];
-        base = descr.src ; # lib.cleanSource descr.src;
-        extraFiles =
-          if (builtins.hasAttr "extra-files" descr)
-          then
-            if builtins.isList descr.extra-files
-            then (_x: descr.extra-files)
-            else descr.extra-files
-          else (_x: []);
+        ghcOpts = ghc-options;
+        base = src; # lib.cleanSource src;
+        extraFiles = if builtins.isList extra-files
+          then (_x: extra-files)
+          else extra-files;
         extraDirs =
-          if (builtins.hasAttr "extra-directories" descr)
-          then
-            if builtins.isList descr.extra-directories
-            then (_x: descr.extra-directories)
-            else descr.extra-directories
-          else (_x: []);
-        mainModName = descr.main;
+            if builtins.isList extra-directories
+            then (_x: extra-directories)
+            else extra-directories;
+        mainModName = main;
       in
     {
       build =
