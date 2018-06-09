@@ -1,6 +1,6 @@
 let
   pkgs = import ../../nix {};
-  snack = pkgs.snack.snack-lib;
+  snack = pkgs.snack-lib;
 in
   snack.executable
     { main = "Foo";

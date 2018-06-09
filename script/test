@@ -1,7 +1,7 @@
 #!/usr/bin/env nix-shell
 #!nix-shell -i bash
 #!nix-shell -I nixpkgs=./nix
-#!nix-shell -p snack.snack-exe
+#!nix-shell -p snack-exe
 #!nix-shell -p shfmt
 #!nix-shell --pure
 # vim: ft=sh sw=2 et

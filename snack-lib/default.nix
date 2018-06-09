@@ -6,7 +6,13 @@
 # TODO: use --make everywhere ?!? NOTE: this is tricky because GHC flags
 #   change: when a module is built with its dependencies, the flags for the
 #   dependencies change as well, which causes them to be recompiled
-{ pkgs ? import (../nix) {} # nixpkgs
+{ lib
+, haskellPackages
+, makeWrapper
+, rsync
+, stdenv
+, symlinkJoin
+, writeScript
 }:
 let
   # Takes a (string) filepath and creates a derivation for that file (and for
@@ -16,20 +22,20 @@ let
       basePrefix = (builtins.toString base) + "/";
       pred = file: path: type:
         let
-          actual = (pkgs.lib.strings.removePrefix basePrefix path);
+          actual = (lib.strings.removePrefix basePrefix path);
           expected = file;
         in
           (expected == actual) ||
-          (type == "directory" && (pkgs.lib.strings.hasPrefix actual expected));
+          (type == "directory" && (lib.strings.hasPrefix actual expected));
       mod = fileToModule file;
       # TODO: even though we're doing a lot of cleaning, there's sitll some
       # 'does-file-exist' happening
-      src0 = pkgs.lib.cleanSource base;
+      src0 = lib.cleanSource base;
 
-    in pkgs.stdenv.mkDerivation {
+    in stdenv.mkDerivation {
       name = mod;
-      src = pkgs.lib.cleanSourceWith  { filter = (pred file); src = src0; };
-      builder = pkgs.writeScript (mod + "-builder")
+      src = lib.cleanSourceWith  { filter = (pred file); src = src0; };
+      builder = writeScript (mod + "-builder")
       # TODO: make sure the file actually exists and that there's only one
       ''
         echo "Singling out module ${mod} (file is ${file})"
@@ -53,14 +59,14 @@ let
     };
 
   moduleToFile = mod:
-    (pkgs.lib.strings.replaceChars ["."] ["/"] mod) + ".hs";
+    (lib.strings.replaceChars ["."] ["/"] mod) + ".hs";
 
   moduleToObject = mod:
-    (pkgs.lib.strings.replaceChars ["."] ["/"] mod) + ".o";
+    (lib.strings.replaceChars ["."] ["/"] mod) + ".o";
 
   fileToModule = file:
-    pkgs.lib.strings.removeSuffix ".hs"
-      (pkgs.lib.strings.replaceChars ["/"] ["."] file);
+    lib.strings.removeSuffix ".hs"
+      (lib.strings.replaceChars ["/"] ["."] file);
 
   singleOutModule = base: mod: singleOut base (moduleToFile mod);
 
@@ -70,7 +76,7 @@ let
   # Create a module spec by following the dependencies. This assumes that the
   # specified module is a "Main" module.
   makeModuleSpecRec = base: filesByModuleName: dirsByModuleName:
-    pkgs.lib.fix
+    lib.fix
       (f: isMain: modName:
         makeModuleSpec
           modName
@@ -86,9 +92,9 @@ let
       builtDeps = map (buildModule ghc base) mod.moduleDependencies;
       depsDirs = map (x: x + "/") builtDeps;
       makeSymtree =
-        if pkgs.lib.lists.length depsDirs >= 1
+        if lib.lists.length depsDirs >= 1
         # TODO: symlink instead of copy
-        then "rsync -r ${pkgs.lib.strings.escapeShellArgs depsDirs} ."
+        then "rsync -r ${lib.strings.escapeShellArgs depsDirs} ."
         else "";
       makeSymModule =
         # TODO: symlink instead of copy
@@ -96,32 +102,32 @@ let
       pred = file: path: type:
         let
           topLevel = (builtins.toString base) + "/";
-          actual = (pkgs.lib.strings.removePrefix topLevel path);
+          actual = (lib.strings.removePrefix topLevel path);
           expected = file;
       in
         (expected == actual) ||
-        (type == "directory" && (pkgs.lib.strings.hasPrefix actual expected));
+        (type == "directory" && (lib.strings.hasPrefix actual expected));
 
 
 
       extraFiles = builtins.filterSource
         (p: t:
-          pkgs.lib.lists.length
+          lib.lists.length
             (
             let
               topLevel = (builtins.toString base) + "/";
-              actual = pkgs.lib.strings.removePrefix topLevel p;
+              actual = lib.strings.removePrefix topLevel p;
             in
-              pkgs.lib.filter (expected:
+              lib.filter (expected:
                 (expected == actual) ||
-                (t == "directory" && (pkgs.lib.strings.hasPrefix actual expected))
+                (t == "directory" && (lib.strings.hasPrefix actual expected))
                 )
                 mod.moduleFiles
             ) >= 1
         ) base;
-    in pkgs.stdenv.mkDerivation
+    in stdenv.mkDerivation
     { name = objectName;
-      src = pkgs.symlinkJoin
+      src = symlinkJoin
         { name = "extra-files";
           paths = [ extraFiles ] ++ mod.moduleDirectories;
         };
@@ -146,28 +152,28 @@ let
 
       buildInputs =
         [ ghc
-          pkgs.rsync
+          rsync
         ];
     };
 
   # Generate a list of haskell module names needed by the haskell file,
   # excluding modules that are not present in this project/base
   listModuleDependencies = base: modName:
-    pkgs.lib.filter
+    lib.filter
       (doesModuleExist base)
       (builtins.fromJSON
         (builtins.readFile (listAllModuleDependenciesJSON base modName))
       );
 
   doesFileExist = base: filename:
-    pkgs.lib.lists.elem filename (listFilesInDir base);
+    lib.lists.elem filename (listFilesInDir base);
 
   listFilesInDir = dir:
   let
     go = dir: dirName:
-      pkgs.lib.lists.concatLists
+      lib.lists.concatLists
       (
-        pkgs.lib.attrsets.mapAttrsToList
+        lib.attrsets.mapAttrsToList
           (path: ty:
             if ty == "directory"
             then
@@ -185,10 +191,10 @@ let
   # Lists all module dependencies, not limited to modules existing in this
   # project
   listAllModuleDependenciesJSON = base: modName:
-    pkgs.stdenv.mkDerivation
+    stdenv.mkDerivation
       { name = "module-deps";
         src = null;
-        builder = pkgs.writeScript "dependencies-json"
+        builder = writeScript "dependencies-json"
         ''
           echo "preparing dependencies"
           source $stdenv/setup
@@ -224,33 +230,33 @@ let
             else moduleToObject x.moduleName;
           attrs1 = f attrs0 mod;
           f = acc: elem:
-            if pkgs.lib.attrsets.hasAttr elem.moduleName acc
+            if lib.attrsets.hasAttr elem.moduleName acc
             then acc
             else acc //
               { "${elem.moduleName}" =
                 "${buildModule ghc base elem}/${objectName elem}";
               };
         in
-          pkgs.lib.lists.foldl f attrs1 mod.moduleDependencies;
+          lib.lists.foldl f attrs1 mod.moduleDependencies;
     in go mod' {};
 
   # TODO: it's sad that we pass ghcWithDeps + dependencies
   linkModuleObjects = ghc: ghcOpts: dependencies: base: mod:
     let
       objAttrs = flattenModuleObjects ghc base mod;
-      objList = pkgs.lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
-      ghcOptsArgs = pkgs.lib.strings.escapeShellArgs ghcOpts;
+      objList = lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
+      ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
       packageList = map (p: "-package ${p}") dependencies;
-    in pkgs.stdenv.mkDerivation
+    in stdenv.mkDerivation
       { name = "linker";
         src = null;
-        builder = pkgs.writeScript "linker-builder"
+        builder = writeScript "linker-builder"
         ''
           source $stdenv/setup
           mkdir -p $out
           ${ghc}/bin/ghc \
-            ${pkgs.lib.strings.escapeShellArgs packageList} \
-            ${pkgs.lib.strings.escapeShellArgs objList} \
+            ${lib.strings.escapeShellArgs packageList} \
+            ${lib.strings.escapeShellArgs objList} \
             ${ghcOptsArgs} \
             -o $out/out
         '';
@@ -258,20 +264,20 @@ let
 
   # Returns a list of all module names depended on in the module spec
   allModuleNames = modSpec:
-    [ modSpec.moduleName ] ++ (pkgs.lib.lists.concatMap allModuleNames modSpec.moduleDependencies);
+    [ modSpec.moduleName ] ++ (lib.lists.concatMap allModuleNames modSpec.moduleDependencies);
 
   allModuleDirectories = modSpec:
-    pkgs.lib.lists.concatLists
+    lib.lists.concatLists
     (
     [ modSpec.moduleDirectories ]
-    ++ (pkgs.lib.lists.concatMap allModuleDirectories modSpec.moduleDependencies)
+    ++ (lib.lists.concatMap allModuleDirectories modSpec.moduleDependencies)
     );
 
   # Write a new ghci executable that loads all the modules defined in the
   # module spec
   ghciExecutable = ghc: ghcOpts: base: modSpec:
     let
-      ghciArgs = pkgs.lib.strings.escapeShellArgs
+      ghciArgs = lib.strings.escapeShellArgs
         (ghcOpts ++ absoluteModuleFiles);
       absoluteModuleFiles = map prependBase moduleFiles;
       moduleFiles = map moduleToFile modules;
@@ -279,7 +285,7 @@ let
       dirs = allModuleDirectories modSpec;
       prependBase = f: builtins.toString base + "/${f}";
       newGhc =
-        pkgs.symlinkJoin
+        symlinkJoin
           { name = "ghci";
             paths = [ ghc ];
             postBuild =
@@ -287,16 +293,16 @@ let
               wrapProgram "$out/bin/ghci" \
                 --add-flags "${ghciArgs}"
             '';
-            buildInputs = [pkgs.makeWrapper];
+            buildInputs = [makeWrapper];
           };
     in
       # This symlinks the extra dirs to $PWD for GHCi to work
-      pkgs.writeScript "ghci-with-files"
+      writeScript "ghci-with-files"
         ''
         set -euo pipefail
 
         TRAPS=""
-        for i in ${pkgs.lib.strings.escapeShellArgs dirs}; do
+        for i in ${lib.strings.escapeShellArgs dirs}; do
           if [ "$i" != "$PWD" ]; then
           for j in $(find "$i" ! -path "$i"); do
             file=$(basename $j)
@@ -313,14 +319,14 @@ let
 
   executable = descr:
       let
-        ghc = pkgs.haskellPackages.ghcWithPackages
+        ghc = haskellPackages.ghcWithPackages
           (ps: map (p: ps.${p}) deps);
         deps = descr.dependencies;
         ghcOpts =
           if (builtins.hasAttr "ghc-options" descr)
           then descr.ghc-options
           else [];
-        base = descr.src ; # pkgs.lib.cleanSource descr.src;
+        base = descr.src ; # lib.cleanSource descr.src;
         extraFiles =
           if (builtins.hasAttr "extra-files" descr)
           then
