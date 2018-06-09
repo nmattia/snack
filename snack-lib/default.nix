@@ -13,6 +13,7 @@
 , stdenv
 , symlinkJoin
 , writeScript
+, runCommand
 }:
 let
   # Takes a (string) filepath and creates a derivation for that file (and for
@@ -193,29 +194,15 @@ let
   # Lists all module dependencies, not limited to modules existing in this
   # project
   listAllModuleDependenciesJSON = base: modName:
-    stdenv.mkDerivation
-      { name = "module-deps";
-        src = null;
-        builder = writeScript "dependencies-json"
-        ''
-          echo "preparing dependencies"
-          source $stdenv/setup
-          # Poor man's module parser
-          FILTER=$(cat <<'EOF'
-          s/import\s*\(qualified\|\)\s*\(\S*\)\s*\(.*\)/\2/p;
-          EOF
-          )
-          JSON=$(cat <<'EOF'
-          s/\(.*\)/"\1"/;
-          $!s/$/,/;
-          EOF
-          )
-          sed -n "$FILTER" ${singleOutModulePath base modName} \
-            | (echo "["; sed "$JSON"; echo "]") > $out
-          echo "done:preparing dependencies"
-          cat $out
-        '';
-      };
+    let
+      importParser = runCommand "import-parser"
+        { buildInputs =
+          [ (haskellPackages.ghcWithPackages
+            (ps: [ ps.haskell-src-exts ]))
+          ];
+        } "ghc ${./Imports.hs} -o $out" ;
+    in runCommand "dependencies-json" {}
+         "${importParser} ${singleOutModulePath base modName} > $out";
 
   # Returns an attribute set where the keys are the module names and the values
   # are the '.o's
