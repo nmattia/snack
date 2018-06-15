@@ -67,6 +67,11 @@ pushd tests/template-haskell-4
 ./test
 popd
 
+banner "Test library"
+pushd tests/library
+./test
+popd
+
 banner "Test stack-exe formatting"
 list=$(shfmt -i 2 -l bin/snack)
 if [[ -n "$list" ]]; then

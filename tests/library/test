@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# vim: ft=sh sw=2 et
+
+set -euo pipefail
+
+snack build
+snack run | diff golden -
+
+TMP_FILE=$(mktemp)
+
+capture_io "$TMP_FILE" main | snack ghci
+
+diff golden $TMP_FILE
+rm $TMP_FILE
