@@ -59,6 +59,7 @@ let
       moduleDirectories = modDirs;
     };
 
+  # Turns a module name to a file
   moduleToFile = mod:
     (lib.strings.replaceChars ["."] ["/"] mod) + ".hs";
 
@@ -76,23 +77,26 @@ let
 
   # Create a module spec by following the dependencies. This assumes that the
   # specified module is a "Main" module.
-  makeModuleSpecRec = base: filesByModuleName: dirsByModuleName:
+  makeModuleSpecRec = baseByModuleName: filesByModuleName: dirsByModuleName:
     lib.fix
       (f: isMain: modName:
         makeModuleSpec
           modName
-          (map (f false) (listModuleDependencies base modName))
+          (map (f false)
+            (listModuleDependencies baseByModuleName modName)
+          )
           isMain
           (filesByModuleName modName)
           (dirsByModuleName modName)
       ) true;
 
-  buildModule = ghc: ghcOpts: base: mod:
+  buildModule = ghc: ghcOpts: baseByModuleName: mod:
     let
       ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
       objectName = mod.moduleName;
-      builtDeps = map (buildModule ghc ghcOpts base) mod.moduleDependencies;
+      builtDeps = map (buildModule ghc ghcOpts baseByModuleName) mod.moduleDependencies;
       depsDirs = map (x: x + "/") builtDeps;
+      base = baseByModuleName mod.moduleName;
       makeSymtree =
         if lib.lists.length depsDirs >= 1
         # TODO: symlink instead of copy
@@ -109,8 +113,6 @@ let
       in
         (expected == actual) ||
         (type == "directory" && (lib.strings.hasPrefix actual expected));
-
-
 
       extraFiles = builtins.filterSource
         (p: t:
@@ -161,15 +163,17 @@ let
 
   # Generate a list of haskell module names needed by the haskell file,
   # excluding modules that are not present in this project/base
-  listModuleDependencies = base: modName:
+  listModuleDependencies = baseByModuleName: modName:
     lib.filter
-      (doesModuleExist base)
+      (doesModuleExist baseByModuleName)
       (builtins.fromJSON
-        (builtins.readFile (listAllModuleDependenciesJSON base modName))
+        (builtins.readFile (listAllModuleDependenciesJSON (baseByModuleName modName) modName))
       );
 
   doesFileExist = base: filename:
     lib.lists.elem filename (listFilesInDir base);
+
+  listModulesInDir = dir: map fileToModule (listFilesInDir dir);
 
   listFilesInDir = dir:
   let
@@ -188,9 +192,10 @@ let
       );
   in go dir "";
 
-  doesModuleExist = base: modName: doesFileExist base (moduleToFile modName);
+  doesModuleExist = baseByModuleName: modName:
+    doesFileExist (baseByModuleName modName) (moduleToFile modName);
 
-  # TODO: if module doesn't exist locally, don't include it
+
   # Lists all module dependencies, not limited to modules existing in this
   # project
   listAllModuleDependenciesJSON = base: modName:
@@ -206,7 +211,7 @@ let
 
   # Returns an attribute set where the keys are the module names and the values
   # are the '.o's
-  flattenModuleObjects = ghc: ghcOpts: base: mod':
+  flattenModuleObjects = ghc: ghcOpts: baseByModuleName: mod':
     let
       go = mod: attrs0:
         let
@@ -223,16 +228,16 @@ let
             then acc
             else acc //
               { "${elem.moduleName}" =
-                "${buildModule ghc ghcOpts base elem}/${objectName elem}";
+                "${buildModule ghc ghcOpts baseByModuleName elem}/${objectName elem}";
               };
         in
           lib.lists.foldl f attrs1 mod.moduleDependencies;
     in go mod' {};
 
   # TODO: it's sad that we pass ghcWithDeps + dependencies
-  linkModuleObjects = ghc: ghcOpts: dependencies: base: mod:
+  linkModuleObjects = ghc: ghcOpts: dependencies: baseByModuleName: mod:
     let
-      objAttrs = flattenModuleObjects ghc ghcOpts base mod;
+      objAttrs = flattenModuleObjects ghc ghcOpts baseByModuleName mod;
       objList = lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
       ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
       packageList = map (p: "-package ${p}") dependencies;
@@ -264,15 +269,21 @@ let
 
   # Write a new ghci executable that loads all the modules defined in the
   # module spec
-  ghciExecutable = ghc: ghcOpts: base: modSpec:
+  ghciExecutable = ghc: ghcOpts: baseByModuleName: modSpec:
     let
       ghciArgs = lib.strings.escapeShellArgs
         (ghcOpts ++ absoluteModuleFiles);
-      absoluteModuleFiles = map prependBase moduleFiles;
-      moduleFiles = map moduleToFile modules;
+      absoluteModuleFiles =
+        map
+          (modName:
+            builtins.toString (baseByModuleName modName) + "/${moduleToFile modName}"
+          )
+          modules;
+
+      #absoluteModuleFiles = map prependBase moduleFiles;
+      #moduleFiles = map moduleToFile modules;
       modules = allModuleNames modSpec;
       dirs = allModuleDirectories modSpec;
-      prependBase = f: builtins.toString base + "/${f}";
       newGhc =
         symlinkJoin
           { name = "ghci";
@@ -315,11 +326,21 @@ let
     , extra-directories ? []
     }:
       let
-        deps = dependencies;
+        deps = lib.filter (x: builtins.typeOf x == "string") dependencies;
+        snackDeps = lib.filter (x: builtins.typeOf x != "string" && x._type == "snack_lib_def") dependencies;
+        baseByModuleName = modName:
+          lib.findFirst
+          (dir:
+            lib.lists.elem modName (listModulesInDir dir)
+            )
+            base # default to base
+            ((map (snackDep: snackDep.src) snackDeps) ++ [ base ] )
+          ;
+
         ghc = haskellPackages.ghcWithPackages
           (ps: map (p: ps.${p}) deps);
         ghcOpts = ghc-options;
-        base = src; # lib.cleanSource src;
+        base = src;
         extraFiles = if builtins.isList extra-files
           then (_x: extra-files)
           else extra-files;
@@ -335,19 +356,27 @@ let
           ghc
           ghcOpts
           deps
-          base
-          (makeModuleSpecRec base extraFiles extraDirs mainModName);
+          baseByModuleName
+          (makeModuleSpecRec baseByModuleName extraFiles extraDirs mainModName);
       ghci =
         ghciExecutable
           ghc
           ghcOpts
-          base
-          (makeModuleSpecRec base extraFiles extraDirs mainModName);
+          baseByModuleName
+          (makeModuleSpecRec baseByModuleName extraFiles extraDirs mainModName);
     };
-
+  library =
+    { src
+    , dependencies ? [] # TODO: handle this
+    }:
+        { _type = "snack_lib_def";
+          inherit src;
+          # TODO: add build for libraries
+        };
 in
   {
     inherit
     executable
+    library
     ;
   }
