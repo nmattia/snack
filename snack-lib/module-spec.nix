@@ -7,7 +7,15 @@
 with (callPackage ./modules.nix { inherit singleOut; });
 
 rec {
-  makeModuleSpec = modName: modImports: isMain: modFiles: modDirs: modBase:
+    makeModuleSpec =
+    modName:
+    modImports:
+    isMain:
+    modFiles:
+    modDirs:
+    modBase:
+    modDeps:
+    modGhcOpts:
     { moduleName = modName;
       moduleIsMain = isMain;
 
@@ -17,11 +25,18 @@ rec {
       moduleFiles = modFiles;
       moduleDirectories = modDirs;
       moduleBase = modBase;
+      moduleDependencies = modDeps;
+      moduleGhcOpts = modGhcOpts;
     };
 
   # Create a module spec by following the dependencies. This assumes that the
   # specified module is a "Main" module.
-  makeModuleSpecRec = baseByModuleName: filesByModuleName: dirsByModuleName:
+    makeModuleSpecRec =
+    baseByModuleName:
+    filesByModuleName:
+    dirsByModuleName:
+    depsByModuleName:
+    ghcOptsByModuleName:
     lib.fix
       (f: isMain: modName:
         makeModuleSpec
@@ -33,6 +48,8 @@ rec {
           (filesByModuleName modName)
           (dirsByModuleName modName)
           (baseByModuleName modName)
+          (depsByModuleName modName)
+          (ghcOptsByModuleName modName)
       ) true;
 
   # Returns a list of all modules in the module spec graph

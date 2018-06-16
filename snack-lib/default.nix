@@ -16,14 +16,17 @@ with (callPackage ./files.nix {});
 # why is "inherit" needed?
 with (callPackage ./modules.nix { inherit singleOut; });
 with (callPackage ./module-spec.nix { inherit singleOut; });
+with (callPackage ./package-spec.nix { inherit singleOut; });
 
 let
 
-  buildModule = ghc: ghcOpts: modSpec:
+  buildModule = ghcWith: modSpec:
     let
+      ghc = ghcWith modSpec.moduleDependencies;
+      ghcOpts = modSpec.moduleGhcOpts;
       ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
       objectName = modSpec.moduleName;
-      builtDeps = map (buildModule ghc ghcOpts) modSpec.moduleImports;
+      builtDeps = map (buildModule ghcWith) modSpec.moduleImports;
       depsDirs = map (x: x + "/") builtDeps;
       base = modSpec.moduleBase;
       makeSymtree =
@@ -93,7 +96,7 @@ let
 
   # Returns an attribute set where the keys are the module names and the values
   # are the '.o's
-  flattenModuleObjects = ghc: ghcOpts: mod0:
+  flattenModuleObjects = ghcWith: mod0:
     let
       go = mod: attrs0:
         let
@@ -107,22 +110,25 @@ let
           attrs1 = f attrs0 mod;
           f = acc: elem:
             if lib.attrsets.hasAttr elem.moduleName acc
-            then acc
+            then acc # breaks infinite recursion
             else acc //
               { "${elem.moduleName}" =
-                "${buildModule ghc ghcOpts elem}/${objectName elem}";
+                "${buildModule ghcWith elem}/${objectName elem}";
               };
         in
           lib.lists.foldl f attrs1 mod.moduleImports;
     in go mod0 {};
 
-  # TODO: it's sad that we pass ghcWithDeps + dependencies
-  linkModuleObjects = ghc: ghcOpts: dependencies: mod:
+  # TODO: this should be ghcWith
+  linkModuleObjects = ghcWith: mod: # main module
     let
-      objAttrs = flattenModuleObjects ghc ghcOpts mod;
+      objAttrs = flattenModuleObjects ghcWith mod;
       objList = lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
-      ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
-      packageList = map (p: "-package ${p}") dependencies;
+      # TODO: all recursive dependencies of "mod"
+      allTransitiveDeps = mod.moduleDependencies;
+      ghc = ghcWith allTransitiveDeps;
+      ghcOptsArgs = lib.strings.escapeShellArgs mod.moduleGhcOpts;
+      packageList = map (p: "-package ${p}") allTransitiveDeps;
     in stdenv.mkDerivation
       { name = "linker";
         src = null;
@@ -147,8 +153,10 @@ let
 
   # Write a new ghci executable that loads all the modules defined in the
   # module spec
-  ghciExecutable = ghc: ghcOpts: modSpec:
+  ghciExecutable = ghcWith: ghcOpts: modSpec:
     let
+      allTransitiveDeps = modSpec.moduleDependencies; #TODO
+      ghc = ghcWith allTransitiveDeps;
       ghciArgs = lib.strings.escapeShellArgs
         (ghcOpts ++ absoluteModuleFiles);
       absoluteModuleFiles =
@@ -193,58 +201,55 @@ let
         ${newGhc}/bin/ghci
         '';
 
-  executable =
-    { main
-    , src
-    , dependencies ? []
-    , ghc-options ? []
-    , extra-files ? []
-    , extra-directories ? []
-    }:
+  executable = pkgDescr:
       let
-        deps = lib.filter (x: builtins.typeOf x == "string") dependencies;
-        snackDeps = lib.filter (x: builtins.typeOf x != "string" && x._type == "snack_lib_def") dependencies;
+        topPkgSpec = mkPackageSpec pkgDescr;
+        pkgs = flattenPackages topPkgSpec;
         baseByModuleName = modName:
-          lib.findFirst
-          (dir:
-            lib.lists.elem modName (listModulesInDir dir)
-            )
-            base # default to base
-            ((map (snackDep: snackDep.src) snackDeps) ++ [ base ] )
-          ;
+          (pkgSpecByModuleName pkgs topPkgSpec modName).packageBase;
 
-        ghc = haskellPackages.ghcWithPackages
+        depsByModuleName = modName:
+          (pkgSpecByModuleName pkgs (abort "should not happen") modName).packageDependencies;
+        ghcOptsByModuleName = modName:
+          (pkgSpecByModuleName pkgs (abort "should not happen") modName).packageGhcOpts;
+
+        ghcWith = deps: haskellPackages.ghcWithPackages
           (ps: map (p: ps.${p}) deps);
-        ghcOpts = ghc-options;
-        base = src;
-        extraFiles = if builtins.isList extra-files
-          then (_x: extra-files)
-          else extra-files;
-        extraDirs =
-            if builtins.isList extra-directories
-            then (_x: extra-directories)
-            else extra-directories;
-        mainModName = main;
+        ghcOpts = topPkgSpec.packageGhcOpts;
+        base = topPkgSpec.packageBase;
+        extraFiles =  topPkgSpec.packageExtraFiles;
+        extraDirs = topPkgSpec.packageExtraDirectories;
+        mainModName = topPkgSpec.packageMain;
       in
     {
       build =
         linkModuleObjects
-          ghc
-          ghcOpts
-          deps
-          (makeModuleSpecRec baseByModuleName extraFiles extraDirs mainModName);
+          ghcWith
+          (makeModuleSpecRec
+            baseByModuleName
+            extraFiles
+            extraDirs
+            depsByModuleName
+            ghcOptsByModuleName
+            mainModName);
       ghci =
         ghciExecutable
-          ghc
+          ghcWith
           ghcOpts
-          (makeModuleSpecRec baseByModuleName extraFiles extraDirs mainModName);
+          (makeModuleSpecRec
+            baseByModuleName
+            extraFiles
+            extraDirs
+            depsByModuleName
+            ghcOptsByModuleName
+            mainModName);
     };
   library =
     { src
     , dependencies ? [] # TODO: handle this
     }:
-        { _type = "snack_lib_def";
-          inherit src;
+        {
+          inherit src dependencies;
           # TODO: add build for libraries
         };
 in

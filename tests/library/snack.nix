@@ -3,7 +3,7 @@ let
   snack = pkgs.snack-lib;
   my-lib = snack.library
     { src = ./src;
-      #dependencies = [ "conduit" ];
+      dependencies = [ "conduit" ];
     };
 in
   snack.executable

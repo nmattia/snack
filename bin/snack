@@ -64,7 +64,7 @@ fi
 
 case $COMMAND in
   build)
-    "$NIX_BUILD" --no-out-link -A build "$SNACK_NIX"
+    "$NIX_BUILD" --no-out-link --show-trace -A build "$SNACK_NIX"
     ;;
   ghci)
     res=$("$NIX_BUILD" --no-out-link -A ghci "$SNACK_NIX")

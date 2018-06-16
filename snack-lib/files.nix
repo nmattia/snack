@@ -39,7 +39,6 @@ rec {
       '';
     };
 
-
   doesFileExist = base: filename:
     lib.lists.elem filename (listFilesInDir base);
 
