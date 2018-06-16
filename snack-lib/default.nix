@@ -1,11 +1,5 @@
 # TODO: currently single out derivations prepend the PWD to the path
-# TODO: commented out modules (-- Foo.Module) aren't parsed properly
-# TODO: make dependecies on GHC per-module if possible
-# TODO: there are too many "does file exist"
 # TODO: make sure that filters for "base" are airtight
-# TODO: use --make everywhere ?!? NOTE: this is tricky because GHC flags
-#   change: when a module is built with its dependencies, the flags for the
-#   dependencies change as well, which causes them to be recompiled
 { lib
 , haskellPackages
 , makeWrapper
@@ -14,43 +8,15 @@
 , symlinkJoin
 , writeScript
 , runCommand
+, callPackage
 }:
+
+with (callPackage ./files.nix {});
+
+# why is "inherit" needed?
+with (callPackage ./modules.nix { inherit singleOut; });
+
 let
-  # Takes a (string) filepath and creates a derivation for that file (and for
-  # that file only)
-  singleOut = base: file:
-    let
-      basePrefix = (builtins.toString base) + "/";
-      pred = file: path: type:
-        let
-          actual = (lib.strings.removePrefix basePrefix path);
-          expected = file;
-        in
-          (expected == actual) ||
-          (type == "directory" && (lib.strings.hasPrefix actual expected));
-      mod = fileToModule file;
-      # TODO: even though we're doing a lot of cleaning, there's sitll some
-      # 'does-file-exist' happening
-      src0 = lib.cleanSource base;
-
-    in stdenv.mkDerivation {
-      name = mod;
-      src = lib.cleanSourceWith  { filter = (pred file); src = src0; };
-      builder = writeScript (mod + "-builder")
-      # TODO: make sure the file actually exists and that there's only one
-      ''
-        echo "Singling out module ${mod} (file is ${file})"
-        source $stdenv/setup
-        mkdir -p $out
-        echo "Running: cp $src/${file} $out/${file}"
-        echo "Listing $src"
-        ls $src/**/*
-        mkdir -p $(dirname $out/${file})
-        cp $src/${file} $out/${file}
-        echo "Done: Singling out module ${mod} (file is ${file})"
-      '';
-    };
-
   makeModuleSpec = modName: deps: isMain: modFiles: modDirs:
     { moduleName = modName;
       moduleIsMain = isMain;
@@ -58,22 +24,6 @@ let
       moduleFiles = modFiles;
       moduleDirectories = modDirs;
     };
-
-  # Turns a module name to a file
-  moduleToFile = mod:
-    (lib.strings.replaceChars ["."] ["/"] mod) + ".hs";
-
-  moduleToObject = mod:
-    (lib.strings.replaceChars ["."] ["/"] mod) + ".o";
-
-  fileToModule = file:
-    lib.strings.removeSuffix ".hs"
-      (lib.strings.replaceChars ["/"] ["."] file);
-
-  singleOutModule = base: mod: singleOut base (moduleToFile mod);
-
-  singleOutModulePath = base: mod:
-    "${singleOut base (moduleToFile mod)}/${moduleToFile mod}";
 
   # Create a module spec by following the dependencies. This assumes that the
   # specified module is a "Main" module.
@@ -170,27 +120,8 @@ let
         (builtins.readFile (listAllModuleDependenciesJSON (baseByModuleName modName) modName))
       );
 
-  doesFileExist = base: filename:
-    lib.lists.elem filename (listFilesInDir base);
-
   listModulesInDir = dir: map fileToModule (listFilesInDir dir);
 
-  listFilesInDir = dir:
-  let
-    go = dir: dirName:
-      lib.lists.concatLists
-      (
-        lib.attrsets.mapAttrsToList
-          (path: ty:
-            if ty == "directory"
-            then
-              go "${dir}/${path}" "${dirName}${path}/"
-            else
-              [ "${dirName}${path}" ]
-          )
-          (builtins.readDir dir)
-      );
-  in go dir "";
 
   doesModuleExist = baseByModuleName: modName:
     doesFileExist (baseByModuleName modName) (moduleToFile modName);
