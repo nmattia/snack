@@ -17,12 +17,13 @@ with (callPackage ./files.nix {});
 with (callPackage ./modules.nix { inherit singleOut; });
 
 let
-  makeModuleSpec = modName: deps: isMain: modFiles: modDirs:
+  makeModuleSpec = modName: deps: isMain: modFiles: modDirs: modBase:
     { moduleName = modName;
       moduleIsMain = isMain;
       moduleDependencies = deps;
       moduleFiles = modFiles;
       moduleDirectories = modDirs;
+      moduleBase = modBase;
     };
 
   # Create a module spec by following the dependencies. This assumes that the
@@ -38,15 +39,16 @@ let
           isMain
           (filesByModuleName modName)
           (dirsByModuleName modName)
+          (baseByModuleName modName)
       ) true;
 
-  buildModule = ghc: ghcOpts: baseByModuleName: mod:
+  buildModule = ghc: ghcOpts: mod:
     let
       ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
       objectName = mod.moduleName;
-      builtDeps = map (buildModule ghc ghcOpts baseByModuleName) mod.moduleDependencies;
+      builtDeps = map (buildModule ghc ghcOpts) mod.moduleDependencies;
       depsDirs = map (x: x + "/") builtDeps;
-      base = baseByModuleName mod.moduleName;
+      base = mod.moduleBase;
       makeSymtree =
         if lib.lists.length depsDirs >= 1
         # TODO: symlink instead of copy
@@ -142,7 +144,7 @@ let
 
   # Returns an attribute set where the keys are the module names and the values
   # are the '.o's
-  flattenModuleObjects = ghc: ghcOpts: baseByModuleName: mod':
+  flattenModuleObjects = ghc: ghcOpts: mod0:
     let
       go = mod: attrs0:
         let
@@ -159,16 +161,16 @@ let
             then acc
             else acc //
               { "${elem.moduleName}" =
-                "${buildModule ghc ghcOpts baseByModuleName elem}/${objectName elem}";
+                "${buildModule ghc ghcOpts elem}/${objectName elem}";
               };
         in
           lib.lists.foldl f attrs1 mod.moduleDependencies;
-    in go mod' {};
+    in go mod0 {};
 
   # TODO: it's sad that we pass ghcWithDeps + dependencies
-  linkModuleObjects = ghc: ghcOpts: dependencies: baseByModuleName: mod:
+  linkModuleObjects = ghc: ghcOpts: dependencies: mod:
     let
-      objAttrs = flattenModuleObjects ghc ghcOpts baseByModuleName mod;
+      objAttrs = flattenModuleObjects ghc ghcOpts mod;
       objList = lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
       ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
       packageList = map (p: "-package ${p}") dependencies;
@@ -187,9 +189,10 @@ let
         '';
       };
 
-  # Returns a list of all module names depended on in the module spec
-  allModuleNames = modSpec:
-    [ modSpec.moduleName ] ++ (lib.lists.concatMap allModuleNames modSpec.moduleDependencies);
+  # Returns a list of all modules in the module spec graph
+  flattenModuleSpec = modSpec:
+    [ modSpec ] ++
+      ( lib.lists.concatMap flattenModuleSpec modSpec.moduleDependencies );
 
   allModuleDirectories = modSpec:
     lib.lists.concatLists
@@ -200,20 +203,18 @@ let
 
   # Write a new ghci executable that loads all the modules defined in the
   # module spec
-  ghciExecutable = ghc: ghcOpts: baseByModuleName: modSpec:
+  ghciExecutable = ghc: ghcOpts: modSpec:
     let
       ghciArgs = lib.strings.escapeShellArgs
         (ghcOpts ++ absoluteModuleFiles);
       absoluteModuleFiles =
         map
-          (modName:
-            builtins.toString (baseByModuleName modName) + "/${moduleToFile modName}"
+          (mod:
+            builtins.toString (mod.moduleBase) +
+              "/${moduleToFile mod.moduleName}"
           )
-          modules;
+          (flattenModuleSpec modSpec);
 
-      #absoluteModuleFiles = map prependBase moduleFiles;
-      #moduleFiles = map moduleToFile modules;
-      modules = allModuleNames modSpec;
       dirs = allModuleDirectories modSpec;
       newGhc =
         symlinkJoin
@@ -287,13 +288,11 @@ let
           ghc
           ghcOpts
           deps
-          baseByModuleName
           (makeModuleSpecRec baseByModuleName extraFiles extraDirs mainModName);
       ghci =
         ghciExecutable
           ghc
           ghcOpts
-          baseByModuleName
           (makeModuleSpecRec baseByModuleName extraFiles extraDirs mainModName);
     };
   library =
