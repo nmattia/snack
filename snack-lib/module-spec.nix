@@ -7,10 +7,13 @@
 with (callPackage ./modules.nix { inherit singleOut; });
 
 rec {
-  makeModuleSpec = modName: deps: isMain: modFiles: modDirs: modBase:
+  makeModuleSpec = modName: modImports: isMain: modFiles: modDirs: modBase:
     { moduleName = modName;
       moduleIsMain = isMain;
-      moduleDependencies = deps;
+
+      # local module imports, i.e. not part of an external dependency
+      moduleImports = modImports;
+
       moduleFiles = modFiles;
       moduleDirectories = modDirs;
       moduleBase = modBase;
@@ -24,7 +27,7 @@ rec {
         makeModuleSpec
           modName
           (map (f false)
-            (listModuleDependencies baseByModuleName modName)
+            (listModuleImports baseByModuleName modName)
           )
           isMain
           (filesByModuleName modName)
@@ -35,6 +38,6 @@ rec {
   # Returns a list of all modules in the module spec graph
   flattenModuleSpec = modSpec:
     [ modSpec ] ++
-      ( lib.lists.concatMap flattenModuleSpec modSpec.moduleDependencies );
+      ( lib.lists.concatMap flattenModuleSpec modSpec.moduleImports );
 
 }

@@ -31,11 +31,11 @@ rec {
 
   # Generate a list of haskell module names needed by the haskell file,
   # excluding modules that are not present in this project/base
-  listModuleDependencies = baseByModuleName: modName:
+  listModuleImports = baseByModuleName: modName:
     lib.filter
       (doesModuleExist baseByModuleName)
       (builtins.fromJSON
-        (builtins.readFile (listAllModuleDependenciesJSON (baseByModuleName modName) modName))
+        (builtins.readFile (listAllModuleImportsJSON (baseByModuleName modName) modName))
       );
 
   listModulesInDir = dir: map fileToModule (listFilesInDir dir);
@@ -47,7 +47,7 @@ rec {
 
   # Lists all module dependencies, not limited to modules existing in this
   # project
-  listAllModuleDependenciesJSON = base: modName:
+  listAllModuleImportsJSON = base: modName:
     let
       importParser = runCommand "import-parser"
         { buildInputs =

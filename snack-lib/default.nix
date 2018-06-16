@@ -23,7 +23,7 @@ let
     let
       ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
       objectName = modSpec.moduleName;
-      builtDeps = map (buildModule ghc ghcOpts) modSpec.moduleDependencies;
+      builtDeps = map (buildModule ghc ghcOpts) modSpec.moduleImports;
       depsDirs = map (x: x + "/") builtDeps;
       base = modSpec.moduleBase;
       makeSymtree =
@@ -113,7 +113,7 @@ let
                 "${buildModule ghc ghcOpts elem}/${objectName elem}";
               };
         in
-          lib.lists.foldl f attrs1 mod.moduleDependencies;
+          lib.lists.foldl f attrs1 mod.moduleImports;
     in go mod0 {};
 
   # TODO: it's sad that we pass ghcWithDeps + dependencies
@@ -142,7 +142,7 @@ let
     lib.lists.concatLists
     (
     [ modSpec.moduleDirectories ]
-    ++ (lib.lists.concatMap allModuleDirectories modSpec.moduleDependencies)
+    ++ (lib.lists.concatMap allModuleDirectories modSpec.moduleImports)
     );
 
   # Write a new ghci executable that loads all the modules defined in the
