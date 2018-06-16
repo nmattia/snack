@@ -15,40 +15,17 @@ with (callPackage ./files.nix {});
 
 # why is "inherit" needed?
 with (callPackage ./modules.nix { inherit singleOut; });
+with (callPackage ./module-spec.nix { inherit singleOut; });
 
 let
-  makeModuleSpec = modName: deps: isMain: modFiles: modDirs: modBase:
-    { moduleName = modName;
-      moduleIsMain = isMain;
-      moduleDependencies = deps;
-      moduleFiles = modFiles;
-      moduleDirectories = modDirs;
-      moduleBase = modBase;
-    };
 
-  # Create a module spec by following the dependencies. This assumes that the
-  # specified module is a "Main" module.
-  makeModuleSpecRec = baseByModuleName: filesByModuleName: dirsByModuleName:
-    lib.fix
-      (f: isMain: modName:
-        makeModuleSpec
-          modName
-          (map (f false)
-            (listModuleDependencies baseByModuleName modName)
-          )
-          isMain
-          (filesByModuleName modName)
-          (dirsByModuleName modName)
-          (baseByModuleName modName)
-      ) true;
-
-  buildModule = ghc: ghcOpts: mod:
+  buildModule = ghc: ghcOpts: modSpec:
     let
       ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
-      objectName = mod.moduleName;
-      builtDeps = map (buildModule ghc ghcOpts) mod.moduleDependencies;
+      objectName = modSpec.moduleName;
+      builtDeps = map (buildModule ghc ghcOpts) modSpec.moduleDependencies;
       depsDirs = map (x: x + "/") builtDeps;
-      base = mod.moduleBase;
+      base = modSpec.moduleBase;
       makeSymtree =
         if lib.lists.length depsDirs >= 1
         # TODO: symlink instead of copy
@@ -56,7 +33,7 @@ let
         else "";
       makeSymModule =
         # TODO: symlink instead of copy
-        "rsync -r ${singleOutModule base mod.moduleName}/ .";
+        "rsync -r ${singleOutModule base modSpec.moduleName}/ .";
       pred = file: path: type:
         let
           topLevel = (builtins.toString base) + "/";
@@ -78,33 +55,33 @@ let
                 (expected == actual) ||
                 (t == "directory" && (lib.strings.hasPrefix actual expected))
                 )
-                mod.moduleFiles
+                modSpec.moduleFiles
             ) >= 1
         ) base;
     in stdenv.mkDerivation
     { name = objectName;
       src = symlinkJoin
         { name = "extra-files";
-          paths = [ extraFiles ] ++ mod.moduleDirectories;
+          paths = [ extraFiles ] ++ modSpec.moduleDirectories;
         };
       phases =
         [ "unpackPhase" "buildPhase" ];
       buildPhase =
         ''
-          echo "Building module ${mod.moduleName}"
+          echo "Building module ${modSpec.moduleName}"
           mkdir -p $out
-          echo "Creating dependencies symtree for module ${mod.moduleName}"
+          echo "Creating dependencies symtree for module ${modSpec.moduleName}"
           ${makeSymtree}
-          echo "Creating module symlink for module ${mod.moduleName}"
+          echo "Creating module symlink for module ${modSpec.moduleName}"
           ${makeSymModule}
-          echo "Compiling module ${mod.moduleName}"
+          echo "Compiling module ${modSpec.moduleName}"
           # Set a tmpdir we have control over, otherwise GHC fails, not sure why
           mkdir -p tmp
-          ghc -tmpdir tmp/ ${moduleToFile mod.moduleName} -c \
+          ghc -tmpdir tmp/ ${moduleToFile modSpec.moduleName} -c \
             -outputdir $out \
             ${ghcOptsArgs} \
             2>&1
-          echo "Done building module ${mod.moduleName}"
+          echo "Done building module ${modSpec.moduleName}"
         '';
 
       buildInputs =
@@ -113,34 +90,6 @@ let
         ];
     };
 
-  # Generate a list of haskell module names needed by the haskell file,
-  # excluding modules that are not present in this project/base
-  listModuleDependencies = baseByModuleName: modName:
-    lib.filter
-      (doesModuleExist baseByModuleName)
-      (builtins.fromJSON
-        (builtins.readFile (listAllModuleDependenciesJSON (baseByModuleName modName) modName))
-      );
-
-  listModulesInDir = dir: map fileToModule (listFilesInDir dir);
-
-
-  doesModuleExist = baseByModuleName: modName:
-    doesFileExist (baseByModuleName modName) (moduleToFile modName);
-
-
-  # Lists all module dependencies, not limited to modules existing in this
-  # project
-  listAllModuleDependenciesJSON = base: modName:
-    let
-      importParser = runCommand "import-parser"
-        { buildInputs =
-          [ (haskellPackages.ghcWithPackages
-            (ps: [ ps.haskell-src-exts ]))
-          ];
-        } "ghc ${./Imports.hs} -o $out" ;
-    in runCommand "dependencies-json" {}
-         "${importParser} ${singleOutModulePath base modName} > $out";
 
   # Returns an attribute set where the keys are the module names and the values
   # are the '.o's
@@ -188,11 +137,6 @@ let
             -o $out/out
         '';
       };
-
-  # Returns a list of all modules in the module spec graph
-  flattenModuleSpec = modSpec:
-    [ modSpec ] ++
-      ( lib.lists.concatMap flattenModuleSpec modSpec.moduleDependencies );
 
   allModuleDirectories = modSpec:
     lib.lists.concatLists
