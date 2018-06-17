@@ -3,8 +3,10 @@ set -euo pipefail
 
 ## Defaults
 
+NIXPKGS=
 NIX_BUILD=nix-build
-SNACK_NIX=snack.nix
+SNACK_NIX="./snack.nix"
+WRAPPER_NIX=
 COMMAND=
 
 ## Functions
@@ -21,6 +23,12 @@ Snack is a Haskell build tool
 
 Options:
   -f | --snack-nix <PATH>: sets the path ot the "snack.nix" file. Default: "./snack.nix"
+  -w | --wrapper-nix <PATH>: sets the path ot the nix wrapper file. This file
+        should take at least one argument, "snackNix", which is the path to the
+        "snack.nix".
+  -n | --nixpkgs <PATH>: use the path to import nixpkgs. The expression should
+        take no arguments and evaluate to a set containing at least
+        "snack-lib".
   -h | --help: Shows this help
 
 Commands:
@@ -38,6 +46,16 @@ while [[ $# -gt 0 ]]; do
   case $key in
     -f | --snack-nix)
       SNACK_NIX="$2"
+      shift
+      shift
+      ;;
+    -w | --wrapper-nix)
+      WRAPPER_NIX="$2"
+      shift
+      shift
+      ;;
+    -n | --nixpkgs)
+      NIXPKGS="$2"
       shift
       shift
       ;;
@@ -62,16 +80,31 @@ if [[ -z "$COMMAND" ]]; then
   exit 1
 fi
 
+if [[ -z "$WRAPPER_NIX" ]]; then
+  log_error "missing <wrapper>\n"
+  show_usage
+  exit 1
+fi
+
+call_snack() {
+  "$NIX_BUILD" \
+    --no-out-link \
+    -A $1 \
+    "$WRAPPER_NIX" \
+    --arg snackNix "$SNACK_NIX" \
+    --arg nixpkgs "$NIXPKGS"
+}
+
 case $COMMAND in
   build)
-    "$NIX_BUILD" --no-out-link --show-trace -A build "$SNACK_NIX"
+    call_snack build
     ;;
   ghci)
-    res=$("$NIX_BUILD" --no-out-link -A ghci "$SNACK_NIX")
+    res=$(call_snack ghci)
     "$res"
     ;;
   run)
-    res=$("$NIX_BUILD" --no-out-link -A build "$SNACK_NIX")
+    res=$(call_snack build)
     "$res/out"
     ;;
 esac

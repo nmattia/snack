@@ -3,12 +3,12 @@
 
 set -euo pipefail
 
-snack build
-snack run | diff golden -
+$SNACK build
+$SNACK run | diff golden -
 
 TMP_FILE=$(mktemp)
 
-capture_io "$TMP_FILE" main | snack ghci
+capture_io "$TMP_FILE" main | $SNACK ghci
 
 diff golden $TMP_FILE
 rm $TMP_FILE

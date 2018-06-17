@@ -204,58 +204,50 @@ let
   executable = pkgDescr:
       let
         topPkgSpec = mkPackageSpec pkgDescr;
-        pkgs = flattenPackages topPkgSpec;
         baseByModuleName = modName:
-          (pkgSpecByModuleName pkgs topPkgSpec modName).packageBase;
+          let res = pkgSpecByModuleName topPkgSpec null modName;
+          in if res == null then null else res.packageBase;
 
         depsByModuleName = modName:
-          (pkgSpecByModuleName pkgs (abort "should not happen") modName).packageDependencies;
+          (pkgSpecByModuleName
+            topPkgSpec
+            (abort "asking dependencies for external module: ${modName}")
+            modName).packageDependencies;
         ghcOptsByModuleName = modName:
-          (pkgSpecByModuleName pkgs (abort "should not happen") modName).packageGhcOpts;
+          (pkgSpecByModuleName
+            topPkgSpec
+            (abort "asking ghc options for external module: ${modName}")
+            modName).packageGhcOpts;
 
         ghcWith = deps: haskellPackages.ghcWithPackages
           (ps: map (p: ps.${p}) deps);
-        ghcOpts = topPkgSpec.packageGhcOpts;
         base = topPkgSpec.packageBase;
         extraFiles =  topPkgSpec.packageExtraFiles;
         extraDirs = topPkgSpec.packageExtraDirectories;
         mainModName = topPkgSpec.packageMain;
+        topModuleSpec =
+          makeModuleSpecRec
+            baseByModuleName
+            extraFiles
+            extraDirs
+            depsByModuleName
+            ghcOptsByModuleName
+            mainModName;
       in
     {
       build =
         linkModuleObjects
           ghcWith
-          (makeModuleSpecRec
-            baseByModuleName
-            extraFiles
-            extraDirs
-            depsByModuleName
-            ghcOptsByModuleName
-            mainModName);
+          topModuleSpec;
       ghci =
         ghciExecutable
           ghcWith
-          ghcOpts
-          (makeModuleSpecRec
-            baseByModuleName
-            extraFiles
-            extraDirs
-            depsByModuleName
-            ghcOptsByModuleName
-            mainModName);
+          (allTransitiveGhcOpts topPkgSpec)
+          topModuleSpec;
     };
-  library =
-    { src
-    , dependencies ? [] # TODO: handle this
-    }:
-        {
-          inherit src dependencies;
-          # TODO: add build for libraries
-        };
 in
   {
     inherit
     executable
-    library
     ;
   }

@@ -29,21 +29,16 @@ rec {
   singleOutModulePath = base: mod:
     "${singleOut base (moduleToFile mod)}/${moduleToFile mod}";
 
-  # Generate a list of haskell module names needed by the haskell file,
-  # excluding modules that are not present in this project/base
+  # Generate a list of haskell module names needed by the haskell file
   listModuleImports = baseByModuleName: modName:
-    lib.filter
-      (doesModuleExist baseByModuleName)
-      (builtins.fromJSON
-        (builtins.readFile (listAllModuleImportsJSON (baseByModuleName modName) modName))
-      );
+    builtins.fromJSON
+     (builtins.readFile (listAllModuleImportsJSON (baseByModuleName modName) modName))
+    ;
 
   listModulesInDir = dir: map fileToModule (listFilesInDir dir);
 
-
   doesModuleExist = baseByModuleName: modName:
     doesFileExist (baseByModuleName modName) (moduleToFile modName);
-
 
   # Lists all module dependencies, not limited to modules existing in this
   # project

@@ -42,7 +42,7 @@ rec {
         makeModuleSpec
           modName
           (map (f false)
-            (listModuleImports baseByModuleName modName)
+            (lib.lists.filter (mn: baseByModuleName mn != null) (listModuleImports baseByModuleName modName))
           )
           isMain
           (filesByModuleName modName)

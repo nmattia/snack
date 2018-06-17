@@ -43,10 +43,17 @@ rec {
     (pkgSpec: pkgSpec.packageDependencies)
     (flattenPackages topPkgSpec);
 
+  # TODO: nub
+  allTransitiveGhcOpts = topPkgSpec:
+    lib.lists.concatMap
+    (pkgSpec: pkgSpec.packageGhcOpts)
+    (flattenPackages topPkgSpec);
 
-  # Returns the first package spec that contains a module with given name. If
-  # none is found, returns the supplied default value.
-  pkgSpecByModuleName = pkgs: def: modName:
+
+  # Traverses all transitive packages and returns the first package spec that
+  # contains a module with given name. If none is found, returns the supplied
+  # default value.
+  pkgSpecByModuleName = topPkgSpec: def: modName:
     ( lib.findFirst
         (pkgSpec:
           lib.lists.elem
@@ -54,6 +61,6 @@ rec {
             (listModulesInDir pkgSpec.packageBase)
         )
         def
-        pkgs
+        (flattenPackages topPkgSpec)
     );
 }
