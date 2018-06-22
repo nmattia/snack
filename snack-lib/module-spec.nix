@@ -10,14 +10,12 @@ rec {
     makeModuleSpec =
     modName:
     modImports:
-    isMain:
     modFiles:
     modDirs:
     modBase:
     modDeps:
     modGhcOpts:
     { moduleName = modName;
-      moduleIsMain = isMain;
 
       # local module imports, i.e. not part of an external dependency
       moduleImports = modImports;
@@ -34,6 +32,8 @@ rec {
 
   # Create a module spec by following the dependencies. This assumes that the
   # specified module is a "Main" module.
+  # TODO: pretty sure things will silently go wrong if several modules in the
+  # dependency tree share a common name
     makeModuleSpecRec =
     baseByModuleName:
     filesByModuleName:
@@ -41,19 +41,18 @@ rec {
     depsByModuleName:
     ghcOptsByModuleName:
     lib.fix
-      (f: isMain: modName:
+      (f: modName:
         makeModuleSpec
           modName
-          (map (f false)
+          (map f
             (lib.lists.filter (mn: baseByModuleName mn != null) (listModuleImports baseByModuleName modName))
           )
-          isMain
           (filesByModuleName modName)
           (dirsByModuleName modName)
           (baseByModuleName modName)
           (depsByModuleName modName)
           (ghcOptsByModuleName modName)
-      ) true;
+      );
 
   # Returns a list of all modules in the module spec graph
   flattenModuleSpec = modSpec:

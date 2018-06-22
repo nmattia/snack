@@ -97,44 +97,34 @@ let
   # Returns an attribute set where the keys are the module names and the values
   # are the '.o's
   flattenModuleObjects = ghcWith: mod0:
-    let
-      go = mod: attrs0:
-        let
-          objectName = x:
-            # TODO: can't justuse "moduleName.o" because some modules get
-            # renamed to "Main.o" :/ Also, hard coding the object file based on
-            # the module name feels icky
-            if x.moduleIsMain
-            then "Main.o"
-            else moduleToObject x.moduleName;
-          attrs1 = f attrs0 mod;
-          f = acc: elem:
-            if lib.attrsets.hasAttr elem.moduleName acc
-            then acc # breaks infinite recursion
-            else acc //
-              { "${elem.moduleName}" =
-                "${buildModule ghcWith elem}/${objectName elem}";
+    lib.fix (f: acc0: mods:
+      let
+        insertMod = acc: mod:
+          if lib.attrsets.hasAttr mod.moduleName acc
+          then acc
+          else
+            let acc' = acc //
+              { "${mod.moduleName}" =
+                "${buildModule ghcWith mod}/${moduleToObject mod.moduleName}";
               };
-        in
-          lib.lists.foldl f attrs1 mod.moduleImports;
-    in go mod0 {};
+            in f acc' mod.moduleImports;
+       in
+        lib.foldl insertMod acc0 mods
+      )
+      # XXX: the main modules need special handling regarding the object name
+      { "${mod0.moduleName}" = "${buildModule ghcWith mod0}/Main.o";}
+      mod0.moduleImports;
 
-  # TODO: this should be ghcWith
   linkModuleObjects = ghcWith: mod: # main module
     let
       objAttrs = flattenModuleObjects ghcWith mod;
       objList = lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
-      # TODO: all recursive dependencies of "mod"
       deps = allTransitiveDeps [mod];
       ghc = ghcWith deps;
       ghcOptsArgs = lib.strings.escapeShellArgs mod.moduleGhcOpts;
       packageList = map (p: "-package ${p}") deps;
-    in stdenv.mkDerivation
-      { name = "linker";
-        src = null;
-        builder = writeScript "linker-builder"
+    in runCommand "linker" {}
         ''
-          source $stdenv/setup
           mkdir -p $out
           ${ghc}/bin/ghc \
             ${lib.strings.escapeShellArgs packageList} \
@@ -142,7 +132,6 @@ let
             ${ghcOptsArgs} \
             -o $out/out
         '';
-      };
 
   allModuleDirectories = modSpec:
     lib.lists.concatLists
