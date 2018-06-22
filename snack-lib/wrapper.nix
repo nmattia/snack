@@ -7,8 +7,9 @@
       then import <nixpkgs> {}
       else import nixpkgs {};
     snack = pkgs.snack-lib;
+    snackDef = import snackNix;
   in
 {
-  build = (snack.executable (import snackNix)).build;
-  ghci = (snack.executable (import snackNix)).ghci;
+  build = (snack.executable snackDef).build;
+  ghci = (snack.executable snackDef).ghci;
 }
