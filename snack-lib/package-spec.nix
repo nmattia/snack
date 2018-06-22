@@ -20,35 +20,26 @@ rec {
     { packageMain = main;
       packageBase = src;
       packageGhcOpts = ghcOpts;
-      packageDependencies = lib.filter (x: builtins.typeOf x == "string") dependencies;
+      packageDependencies = mkPerModuleAttr dependencies;
 
       # TODO: merge extra files and extra dirs together
-      packageExtraFiles =
-          if builtins.isList extra-files
-          then (_x: extra-files)
-          else extra-files;
-      packageExtraDirectories =
-            if builtins.isList extra-directories
-            then (_x: extra-directories)
-            else extra-directories;
+      packageExtraFiles = mkPerModuleAttr extra-files;
+      packageExtraDirectories = mkPerModuleAttr extra-directories;
       packagePackages = map mkPackageSpec packages;
     };
 
+  mkPerModuleAttr = attr:
+    if builtins.isList attr
+    then (_: attr)
+    else if builtins.isAttrs attr
+    then (x: attr.${x})
+    else if builtins.isFunction attr
+    then attr
+    else
+      abort "Unknown type for per module attributes: ${builtins.typeOf attr}";
+
   flattenPackages = topPkgSpec:
     [topPkgSpec] ++ lib.lists.concatMap (flattenPackages) topPkgSpec.packagePackages;
-
-  # TODO: nub
-  allTransitiveDeps = topPkgSpec:
-    lib.lists.concatMap
-    (pkgSpec: pkgSpec.packageDependencies)
-    (flattenPackages topPkgSpec);
-
-  # TODO: nub
-  allTransitiveGhcOpts = topPkgSpec:
-    lib.lists.concatMap
-    (pkgSpec: pkgSpec.packageGhcOpts)
-    (flattenPackages topPkgSpec);
-
 
   # Traverses all transitive packages and returns the first package spec that
   # contains a module with given name. If none is found, returns the supplied
