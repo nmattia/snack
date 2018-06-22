@@ -15,7 +15,7 @@ rec {
     , dependencies ? []
     , extra-files ? []
     , extra-directories ? []
-    , packages ? lib.filter (x: builtins.typeOf x != "string") dependencies
+    , packages ? []
     }:
     { packageMain = main;
       packageBase = src;

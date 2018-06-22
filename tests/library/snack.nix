@@ -6,5 +6,6 @@ let
 in
   { main = "Foo";
     src = ./app;
-    dependencies = [ my-lib "conduit" ];
+    dependencies = [ "conduit" ];
+    packages = [ my-lib ];
   }
