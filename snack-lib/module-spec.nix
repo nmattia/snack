@@ -25,7 +25,10 @@ rec {
       moduleFiles = modFiles;
       moduleDirectories = modDirs;
       moduleBase = modBase;
-      moduleDependencies = modDeps;
+      moduleDependencies =
+        if builtins.isList modDeps
+        then modDeps
+        else abort "module dependencies should be a list";
       moduleGhcOpts = modGhcOpts;
     };
 
@@ -56,5 +59,28 @@ rec {
   flattenModuleSpec = modSpec:
     [ modSpec ] ++
       ( lib.lists.concatMap flattenModuleSpec modSpec.moduleImports );
+
+  allTransitiveDeps = allTransitiveLists "moduleDependencies";
+  allTransitiveGhcOpts = allTransitiveLists "moduleGhcOpts";
+
+  allTransitiveLists = attr: modSpecs:
+    lib.attrsets.attrNames
+    (
+    lib.fix
+      (f: mods: deps: modSpecs:
+        if lib.lists.length modSpecs == 0
+        then deps
+        else
+          let
+            modSpec = lib.lists.head modSpecs;
+            modSpecs' = lib.lists.tail modSpecs;
+            newDeps = lib.attrsets.listToAttrs
+              (map (dep: { name = dep; value = null; })
+                modSpec.${attr});
+            deps' = deps // newDeps;
+            mods' = mods // { ${modSpec.moduleName} = null; };
+          in f mods' deps' modSpecs'
+        ) {} {} modSpecs
+      )  ;
 
 }

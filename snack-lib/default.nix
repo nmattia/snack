@@ -125,10 +125,10 @@ let
       objAttrs = flattenModuleObjects ghcWith mod;
       objList = lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
       # TODO: all recursive dependencies of "mod"
-      allTransitiveDeps = mod.moduleDependencies;
-      ghc = ghcWith allTransitiveDeps;
+      deps = allTransitiveDeps [mod];
+      ghc = ghcWith deps;
       ghcOptsArgs = lib.strings.escapeShellArgs mod.moduleGhcOpts;
-      packageList = map (p: "-package ${p}") allTransitiveDeps;
+      packageList = map (p: "-package ${p}") deps;
     in stdenv.mkDerivation
       { name = "linker";
         src = null;
@@ -155,8 +155,7 @@ let
   # module spec
   ghciExecutable = ghcWith: ghcOpts: modSpec:
     let
-      allTransitiveDeps = modSpec.moduleDependencies; #TODO
-      ghc = ghcWith allTransitiveDeps;
+      ghc = ghcWith (allTransitiveDeps [modSpec]);
       ghciArgs = lib.strings.escapeShellArgs
         (ghcOpts ++ absoluteModuleFiles);
       absoluteModuleFiles =
@@ -200,6 +199,7 @@ let
         done
         ${newGhc}/bin/ghci
         '';
+  traceType = x: builtins.trace (builtins.typeOf x) x;
 
   executable = pkgDescr:
       let
@@ -212,7 +212,9 @@ let
           (pkgSpecByModuleName
             topPkgSpec
             (abort "asking dependencies for external module: ${modName}")
-            modName).packageDependencies;
+            modName).packageDependencies
+            modName
+          ;
         ghcOptsByModuleName = modName:
           (pkgSpecByModuleName
             topPkgSpec
@@ -242,7 +244,7 @@ let
       ghci =
         ghciExecutable
           ghcWith
-          (allTransitiveGhcOpts topPkgSpec)
+          (allTransitiveGhcOpts [topModuleSpec])
           topModuleSpec;
     };
 in
