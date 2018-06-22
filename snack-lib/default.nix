@@ -119,22 +119,16 @@ let
           lib.lists.foldl f attrs1 mod.moduleImports;
     in go mod0 {};
 
-  # TODO: this should be ghcWith
   linkModuleObjects = ghcWith: mod: # main module
     let
       objAttrs = flattenModuleObjects ghcWith mod;
       objList = lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
-      # TODO: all recursive dependencies of "mod"
       deps = allTransitiveDeps [mod];
       ghc = ghcWith deps;
       ghcOptsArgs = lib.strings.escapeShellArgs mod.moduleGhcOpts;
       packageList = map (p: "-package ${p}") deps;
-    in stdenv.mkDerivation
-      { name = "linker";
-        src = null;
-        builder = writeScript "linker-builder"
+    in runCommand "linker" {}
         ''
-          source $stdenv/setup
           mkdir -p $out
           ${ghc}/bin/ghc \
             ${lib.strings.escapeShellArgs packageList} \
@@ -142,7 +136,6 @@ let
             ${ghcOptsArgs} \
             -o $out/out
         '';
-      };
 
   allModuleDirectories = modSpec:
     lib.lists.concatLists
