@@ -1,5 +1,4 @@
-import Conduit
-import FooBar
+import qualified Bar
 
 main :: IO ()
-main = runConduit $ spitOut .| takeC 5 .| digest
+main = Bar.main

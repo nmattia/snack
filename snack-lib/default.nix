@@ -97,27 +97,24 @@ let
   # Returns an attribute set where the keys are the module names and the values
   # are the '.o's
   flattenModuleObjects = ghcWith: mod0:
-    let
-      go = mod: attrs0:
-        let
-          objectName = x:
+    lib.fix (f: acc: mod:
+      let objectName = x:
             # TODO: can't justuse "moduleName.o" because some modules get
             # renamed to "Main.o" :/ Also, hard coding the object file based on
             # the module name feels icky
             if x.moduleIsMain
             then "Main.o"
             else moduleToObject x.moduleName;
-          attrs1 = f attrs0 mod;
-          f = acc: elem:
-            if lib.attrsets.hasAttr elem.moduleName acc
-            then acc # breaks infinite recursion
-            else acc //
-              { "${elem.moduleName}" =
-                "${buildModule ghcWith elem}/${objectName elem}";
-              };
-        in
-          lib.lists.foldl f attrs1 mod.moduleImports;
-    in go mod0 {};
+       in
+            if lib.attrsets.hasAttr mod.moduleName acc
+            then acc
+            else
+              let acc' = acc //
+                { "${mod.moduleName}" =
+                  "${buildModule ghcWith mod}/${objectName mod}";
+                };
+              in lib.foldl f acc' mod.moduleImports
+      ) {} mod0;
 
   linkModuleObjects = ghcWith: mod: # main module
     let
