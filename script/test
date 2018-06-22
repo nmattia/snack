@@ -33,6 +33,8 @@ END_HEREDOC
 
 export -f capture_io
 
+export SNACK="snack -n $(readlink -f ./nix)"
+
 fail() {
   echo "ERROR: $*"
   exit 1

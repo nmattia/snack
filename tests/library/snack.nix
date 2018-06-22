@@ -1,13 +1,10 @@
 let
-  pkgs = import ../../nix {};
-  snack = pkgs.snack-lib;
-  my-lib = snack.library
+  my-lib =
     { src = ./src;
-      #dependencies = [ "conduit" ];
+      dependencies = [ "conduit" ];
     };
 in
-  snack.executable
-    { main = "Foo";
-      src = ./app;
-      dependencies = [ my-lib "conduit" ];
-    }
+  { main = "Foo";
+    src = ./app;
+    dependencies = [ my-lib "conduit" ];
+  }
