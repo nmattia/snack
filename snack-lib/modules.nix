@@ -14,6 +14,7 @@ rec {
     (lib.strings.replaceChars ["."] ["/"] mod) + ".hs";
 
   # Turns a module name into the filepath of its object file
+  # TODO: bad name, this is module _name_ to object
   moduleToObject = mod:
     (lib.strings.replaceChars ["."] ["/"] mod) + ".o";
 

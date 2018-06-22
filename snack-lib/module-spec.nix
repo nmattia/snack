@@ -34,6 +34,8 @@ rec {
 
   # Create a module spec by following the dependencies. This assumes that the
   # specified module is a "Main" module.
+  # TODO: pretty sure things will silently go wrong if several modules in the
+  # dependency tree share a common name
     makeModuleSpecRec =
     baseByModuleName:
     filesByModuleName:
