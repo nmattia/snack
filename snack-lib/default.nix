@@ -97,24 +97,23 @@ let
   # Returns an attribute set where the keys are the module names and the values
   # are the '.o's
   flattenModuleObjects = ghcWith: mod0:
-    lib.fix (f: acc: mod:
-      let objectName = x:
-            # TODO: can't justuse "moduleName.o" because some modules get
-            # renamed to "Main.o" :/ Also, hard coding the object file based on
-            # the module name feels icky
-            if x.moduleIsMain
-            then "Main.o"
-            else moduleToObject x.moduleName;
+    lib.fix (f: acc0: mods:
+      let
+        insertMod = acc: mod:
+          if lib.attrsets.hasAttr mod.moduleName acc
+          then acc
+          else
+            let acc' = acc //
+              { "${mod.moduleName}" =
+                "${buildModule ghcWith mod}/${moduleToObject mod.moduleName}";
+              };
+            in f acc' mod.moduleImports;
        in
-            if lib.attrsets.hasAttr mod.moduleName acc
-            then acc
-            else
-              let acc' = acc //
-                { "${mod.moduleName}" =
-                  "${buildModule ghcWith mod}/${objectName mod}";
-                };
-              in lib.foldl f acc' mod.moduleImports
-      ) {} mod0;
+        lib.foldl insertMod acc0 mods
+      )
+      # XXX: the main modules need special handling regarding the object name
+      { "${mod0.moduleName}" = "${buildModule ghcWith mod0}/Main.o";}
+      mod0.moduleImports;
 
   linkModuleObjects = ghcWith: mod: # main module
     let
