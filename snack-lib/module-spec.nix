@@ -45,7 +45,10 @@ rec {
         makeModuleSpec
           modName
           (map f
-            (lib.lists.filter (mn: baseByModuleName mn != null) (listModuleImports baseByModuleName modName))
+            (lib.lists.filter
+              (mn: ! builtins.isNull (baseByModuleName mn))
+              (listModuleImports baseByModuleName modName)
+            )
           )
           (filesByModuleName modName)
           (dirsByModuleName modName)
