@@ -119,7 +119,7 @@ let
       acc0
       modSpecs;
 
-  linkModuleObjects = ghcWith: mod: # main module
+  linkMainModule = ghcWith: mod: # main module
     let
       objAttrs = buildMain ghcWith mod;
       objList = lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
@@ -146,9 +146,10 @@ let
 
   # Write a new ghci executable that loads all the modules defined in the
   # module spec
-  ghciExecutable = ghcWith: ghcOpts: modSpec:
+  ghciWithMain = ghcWith: mainModSpec:
     let
-      ghc = ghcWith (allTransitiveDeps [modSpec]);
+      ghcOpts = allTransitiveGhcOpts [mainModSpec];
+      ghc = ghcWith (allTransitiveDeps [mainModSpec]);
       ghciArgs = lib.strings.escapeShellArgs
         (ghcOpts ++ absoluteModuleFiles);
       absoluteModuleFiles =
@@ -157,9 +158,9 @@ let
             builtins.toString (mod.moduleBase) +
               "/${moduleToFile mod.moduleName}"
           )
-          (flattenModuleSpec modSpec);
+          (flattenModuleSpec mainModSpec);
 
-      dirs = allModuleDirectories modSpec;
+      dirs = allModuleDirectories mainModSpec;
       newGhc =
         symlinkJoin
           { name = "ghci";
@@ -226,35 +227,28 @@ let
           };
 
   executable = pkgDescr:
-      let
-        moduleSpecFold' = modSpecFoldFromPackageSpec topPkgSpec;
-        topPkgSpec = mkPackageSpec pkgDescr;
-        ghcWith = deps: haskellPackages.ghcWithPackages
-          (ps: map (p: ps.${p}) deps);
-        mainModName = topPkgSpec.packageMain;
-        topModuleSpec =
-          let
-            fld = moduleSpecFold' modSpecs;
-            modSpecs = foldDAG fld [mainModName];
-          in modSpecs.${mainModName};
-      in
-    {
-      build =
-        if builtins.isNull mainModName
-        then
-          buildLibrary
-            ghcWith
-            (allTransitiveImports [topModuleSpec])
-        else
-          linkModuleObjects
-            ghcWith
-            topModuleSpec;
-      ghci =
-        ghciExecutable
-          ghcWith
-          (allTransitiveGhcOpts [topModuleSpec])
-          topModuleSpec;
-    };
+    let
+      moduleSpecFold' = modSpecFoldFromPackageSpec topPkgSpec;
+      topPkgSpec = mkPackageSpec pkgDescr;
+      ghcWith = deps: haskellPackages.ghcWithPackages
+        (ps: map (p: ps.${p}) deps);
+      mainModName = topPkgSpec.packageMain;
+    in
+      if builtins.isNull topPkgSpec.packageMain
+      then abort "Snack does not support building libraries!"
+      else
+        let
+          mainModName = topPkgSpec.packageMain;
+          mainModSpec =
+            let
+              fld = moduleSpecFold' modSpecs;
+              modSpecs = foldDAG fld [mainModName];
+            in modSpecs.${mainModName};
+        in
+
+        { build = linkMainModule ghcWith mainModSpec;
+          ghci = ghciWithMain ghcWith mainModSpec;
+        };
 in
   {
     inherit
