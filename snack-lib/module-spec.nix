@@ -5,6 +5,7 @@
 }:
 
 with (callPackage ./modules.nix { inherit singleOut; });
+with (callPackage ./lib.nix {});
 
 rec {
     makeModuleSpec =
@@ -34,28 +35,36 @@ rec {
   # specified module is a "Main" module.
   # TODO: pretty sure things will silently go wrong if several modules in the
   # dependency tree share a common name
-    makeModuleSpecRec =
-    baseByModuleName:
-    filesByModuleName:
-    dirsByModuleName:
-    depsByModuleName:
-    ghcOptsByModuleName:
-    lib.fix
-      (f: modName:
-        makeModuleSpec
-          modName
-          (map f
-            (lib.lists.filter
-              (mn: ! builtins.isNull (baseByModuleName mn))
-              (listModuleImports baseByModuleName modName)
+  makeModuleSpecRec =
+    byModName@{ baseByModuleName
+    , filesByModuleName
+    , dirsByModuleName
+    , depsByModuleName
+    , ghcOptsByModuleName
+    }:
+    mainModName:
+      let
+        modImportsNames = modName:
+          lib.lists.filter
+            (modName': ! builtins.isNull (baseByModuleName modName'))
+            (listModuleImports baseByModuleName modName);
+        modSpecs =
+          foldDAG
+            (modName:
+              makeModuleSpec
+                modName
+                (map (mn: modSpecs.${mn}) (modImportsNames modName))
+                (filesByModuleName modName)
+                (dirsByModuleName modName)
+                (baseByModuleName modName)
+                (depsByModuleName modName)
+                (ghcOptsByModuleName modName)
             )
-          )
-          (filesByModuleName modName)
-          (dirsByModuleName modName)
-          (baseByModuleName modName)
-          (depsByModuleName modName)
-          (ghcOptsByModuleName modName)
-      );
+            lib.id
+            modImportsNames
+            [mainModName];
+        in modSpecs.${mainModName};
+
 
   # Returns a list of all modules in the module spec graph
   flattenModuleSpec = modSpec:
@@ -64,6 +73,7 @@ rec {
 
   allTransitiveDeps = allTransitiveLists "moduleDependencies";
   allTransitiveGhcOpts = allTransitiveLists "moduleGhcOpts";
+  allTransitiveImports = allTransitiveLists "moduleImports";
 
   allTransitiveLists = attr: modSpecs:
     lib.attrsets.attrNames
