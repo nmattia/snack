@@ -112,9 +112,10 @@ let
   # XXX: doesn't work if several modules in the DAG have the same name
   buildModulesRec = ghcWith: acc0: modSpecs:
     foldDAGRec
-      (mod: "${buildModule ghcWith mod}/${moduleToObject mod.moduleName}")
-      (mod: mod.moduleName)
-      (mod: mod.moduleImports)
+      { f = mod: "${buildModule ghcWith mod}/${moduleToObject mod.moduleName}";
+        elemLabel = mod: mod.moduleName;
+        elemChildren = mod: mod.moduleImports;
+      }
       acc0
       modSpecs;
 
@@ -219,20 +220,18 @@ let
         extraFiles =  topPkgSpec.packageExtraFiles;
         extraDirs = topPkgSpec.packageExtraDirectories;
         mainModName = topPkgSpec.packageMain;
+        moduleSpecFold' = moduleSpecFold
+              { baseByModuleName = baseByModuleName;
+                filesByModuleName = extraFiles;
+                dirsByModuleName = extraDirs;
+                depsByModuleName = depsByModuleName;
+                ghcOptsByModuleName = ghcOptsByModuleName;
+              } ;
         topModuleSpec =
-          makeModuleSpecRec
-            { baseByModuleName = baseByModuleName;
-              filesByModuleName = extraFiles;
-              dirsByModuleName = extraDirs;
-              depsByModuleName = depsByModuleName;
-              ghcOptsByModuleName = ghcOptsByModuleName;
-            }
-
-            #extraFiles
-            #extraDirs
-            #depsByModuleName
-            #ghcOptsByModuleName
-            mainModName;
+          let
+            fld = moduleSpecFold' modSpecs;
+            modSpecs = foldDAG fld [mainModName];
+          in modSpecs.${mainModName};
       in
     {
       build =

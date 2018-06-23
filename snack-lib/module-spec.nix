@@ -31,40 +31,33 @@ rec {
       moduleGhcOpts = modGhcOpts;
     };
 
-  # Create a module spec by following the dependencies. This assumes that the
-  # specified module is a "Main" module.
-  # TODO: pretty sure things will silently go wrong if several modules in the
-  # dependency tree share a common name
-  makeModuleSpecRec =
-    byModName@{ baseByModuleName
-    , filesByModuleName
-    , dirsByModuleName
-    , depsByModuleName
-    , ghcOptsByModuleName
-    }:
-    mainModName:
-      let
-        modImportsNames = modName:
-          lib.lists.filter
-            (modName': ! builtins.isNull (baseByModuleName modName'))
-            (listModuleImports baseByModuleName modName);
-        modSpecs =
-          foldDAG
-            (modName:
-              makeModuleSpec
-                modName
-                (map (mn: modSpecs.${mn}) (modImportsNames modName))
-                (filesByModuleName modName)
-                (dirsByModuleName modName)
-                (baseByModuleName modName)
-                (depsByModuleName modName)
-                (ghcOptsByModuleName modName)
-            )
-            lib.id
-            modImportsNames
-            [mainModName];
-        in modSpecs.${mainModName};
 
+    moduleSpecFold =
+      { baseByModuleName
+      , filesByModuleName
+      , dirsByModuleName
+      , depsByModuleName
+      , ghcOptsByModuleName
+      }:
+      result:
+    let
+      modImportsNames = modName:
+        lib.lists.filter
+          (modName': ! builtins.isNull (baseByModuleName modName'))
+          (listModuleImports baseByModuleName modName);
+    in
+      { f = modName:
+          makeModuleSpec
+            modName
+            (map (mn: result.${mn}) (modImportsNames modName))
+            (filesByModuleName modName)
+            (dirsByModuleName modName)
+            (baseByModuleName modName)
+            (depsByModuleName modName)
+            (ghcOptsByModuleName modName);
+        elemLabel = lib.id;
+        elemChildren = modImportsNames;
+      };
 
   # Returns a list of all modules in the module spec graph
   flattenModuleSpec = modSpec:

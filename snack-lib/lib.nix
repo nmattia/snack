@@ -1,33 +1,38 @@
 { lib
 }: rec {
 
-# Like foldDAG' but with a single root
-foldDAG1 = f: elemLabel: elemChildren: root:
-  let
-    acc = foldDAGRec f elemLabel elemChildren {} [root];
-  in acc.${elemLabel root};
+# All fold functions in this module take a record as follows:
+# { f :: elem -> elem'
+# , elemLabel :: elem -> label
+# , elemChildren :: elem -> [elem]
+# }
 
-# Like foldDAG but returns the updated roots instead of the accumulator
-foldDAG' = f: elemLabel: elemChildren: roots:
-  let
-    acc = foldDAGRec f elemLabel elemChildren {} roots;
-  in map (elem: acc.${elemLabel elem}) roots;
+# foldDAG1 :: Fold -> elem -> elem'
+foldDAG1 = fld: root:
+  let acc = foldDAGRec fld {} [root];
+  in acc.${fld.elemLabel root};
 
-foldDAG = f: elemLabel: elemChildren: roots:
-  foldDAGRec f elemLabel elemChildren {} roots;
+# foldDAG' :: Fold -> [elem] -> [elem']
+foldDAG' = fld: roots:
+  let acc = foldDAGRec fld {} roots;
+  in map (elem: acc.${fld.elemLabel elem}) roots;
 
-foldDAGRec = f: elemLabel: elemChildren: acc0: roots:
+# foldDAG :: Fold -> [elem] -> { label -> elem' }
+foldDAG = fld: roots:
+  foldDAGRec fld {} roots;
+
+# foldDAG' :: Fold -> { label -> elem' } -> [elem] -> { label -> elem' }
+foldDAGRec = fld: acc0: roots:
   let
     insert = acc: elem:
       let
-        label = elemLabel elem;
-        children = elemChildren elem;
+        label = fld.elemLabel elem;
+        children = fld.elemChildren elem;
       in
         if lib.attrsets.hasAttr label acc
         then acc
         else
-          let acc' = acc // { ${label} = f elem; };
-          in foldDAGRec f elemLabel elemChildren acc' children;
+          let acc' = acc // { ${label} = fld.f elem; };
+          in foldDAGRec fld acc' children;
   in lib.foldl insert acc0 roots;
-
 }
