@@ -46,7 +46,9 @@ rec {
           (modName': ! builtins.isNull (baseByModuleName modName'))
           (listModuleImports baseByModuleName modName);
     in
+      # TODO: DFS instead of Fold
       { f = modName:
+          { "${modName}" =
           makeModuleSpec
             modName
             (map (mn: result.${mn}) (modImportsNames modName))
@@ -55,6 +57,9 @@ rec {
             (baseByModuleName modName)
             (depsByModuleName modName)
             (ghcOptsByModuleName modName);
+          };
+        empty = {} ;
+        reduce = a: b: a // b;
         elemLabel = lib.id;
         elemChildren = modImportsNames;
       };
@@ -64,28 +69,29 @@ rec {
     [ modSpec ] ++
       ( lib.lists.concatMap flattenModuleSpec modSpec.moduleImports );
 
-  allTransitiveDeps = allTransitiveLists "moduleDependencies";
-  allTransitiveGhcOpts = allTransitiveLists "moduleGhcOpts";
-  allTransitiveImports = allTransitiveLists "moduleImports";
+  allTransitiveDeps = allTransitiveLists "moduleDependencies" lib.id;
+  allTransitiveGhcOpts = allTransitiveLists "moduleGhcOpts" lib.id;
+  allTransitiveDirectories =
+    allTransitiveLists
+      "moduleDirectories"
+      builtins.toString; # XXX: is toString correct?
+  allTransitiveImports =
+    allTransitiveLists
+      "moduleImports"
+      (modSpec: modSpec.moduleName);
 
-  allTransitiveLists = attr: modSpecs0:
-    lib.attrsets.attrNames
-    (
-    lib.fix
-      (f: mods: deps: modSpecs:
-        if lib.lists.length modSpecs == 0
-        then deps
-        else
-          let
-            modSpec = lib.lists.head modSpecs;
-            modSpecs' = lib.lists.tail modSpecs;
-            newDeps = lib.attrsets.listToAttrs
-              (map (dep: { name = dep; value = null; })
-                modSpec.${attr});
-            deps' = deps // newDeps;
-            mods' = mods // { ${modSpec.moduleName} = null; };
-          in f mods' deps' modSpecs'
-        ) {} {} modSpecs0
-      )  ;
-
+  allTransitiveLists = attr: toLabel: modSpecs:
+    lib.attrsets.attrValues
+    ( foldDAG
+        { f = modSpec:
+            lib.lists.foldl
+              (x: y: x // { ${toLabel y} = y;})
+              {} modSpec.${attr};
+          empty = {};
+          elemLabel = modSpec: modSpec.moduleName;
+          reduce = a: b: a // b;
+          elemChildren = modSpec: modSpec.moduleImports;
+        }
+        modSpecs
+    );
 }
