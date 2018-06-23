@@ -232,7 +232,6 @@ let
       topPkgSpec = mkPackageSpec pkgDescr;
       ghcWith = deps: haskellPackages.ghcWithPackages
         (ps: map (p: ps.${p}) deps);
-      mainModName = topPkgSpec.packageMain;
     in
       if builtins.isNull topPkgSpec.packageMain
       then
