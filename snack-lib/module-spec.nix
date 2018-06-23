@@ -68,7 +68,7 @@ rec {
   allTransitiveGhcOpts = allTransitiveLists "moduleGhcOpts";
   allTransitiveImports = allTransitiveLists "moduleImports";
 
-  allTransitiveLists = attr: modSpecs:
+  allTransitiveLists = attr: modSpecs0:
     lib.attrsets.attrNames
     (
     lib.fix
@@ -85,7 +85,7 @@ rec {
             deps' = deps // newDeps;
             mods' = mods // { ${modSpec.moduleName} = null; };
           in f mods' deps' modSpecs'
-        ) {} {} modSpecs
+        ) {} {} modSpecs0
       )  ;
 
 }
