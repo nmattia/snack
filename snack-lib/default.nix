@@ -194,39 +194,44 @@ let
         '';
   traceType = x: builtins.trace (builtins.typeOf x) x;
 
-  executable = pkgDescr:
-      let
-        topPkgSpec = mkPackageSpec pkgDescr;
-        baseByModuleName = modName:
-          let res = pkgSpecByModuleName topPkgSpec null modName;
-          in if res == null then null else res.packageBase;
 
+  # Takes a package spec and returns (modSpecs -> Fold)
+  modSpecFoldFromPackageSpec = pkgSpec:
+      let
+        baseByModuleName = modName:
+          let res = pkgSpecByModuleName pkgSpec null modName;
+          in if res == null then null else res.packageBase;
         depsByModuleName = modName:
           (pkgSpecByModuleName
-            topPkgSpec
+            pkgSpec
             (abort "asking dependencies for external module: ${modName}")
             modName).packageDependencies
             modName
           ;
         ghcOptsByModuleName = modName:
           (pkgSpecByModuleName
-            topPkgSpec
+            pkgSpec
             (abort "asking ghc options for external module: ${modName}")
             modName).packageGhcOpts;
+        base = pkgSpec.packageBase;
+        extraFiles =  pkgSpec.packageExtraFiles;
+        extraDirs = pkgSpec.packageExtraDirectories;
+      in
+        moduleSpecFold
+          { baseByModuleName = baseByModuleName;
+            filesByModuleName = extraFiles;
+            dirsByModuleName = extraDirs;
+            depsByModuleName = depsByModuleName;
+            ghcOptsByModuleName = ghcOptsByModuleName;
+          };
 
+  executable = pkgDescr:
+      let
+        moduleSpecFold' = modSpecFoldFromPackageSpec topPkgSpec;
+        topPkgSpec = mkPackageSpec pkgDescr;
         ghcWith = deps: haskellPackages.ghcWithPackages
           (ps: map (p: ps.${p}) deps);
-        base = topPkgSpec.packageBase;
-        extraFiles =  topPkgSpec.packageExtraFiles;
-        extraDirs = topPkgSpec.packageExtraDirectories;
         mainModName = topPkgSpec.packageMain;
-        moduleSpecFold' = moduleSpecFold
-              { baseByModuleName = baseByModuleName;
-                filesByModuleName = extraFiles;
-                dirsByModuleName = extraDirs;
-                depsByModuleName = depsByModuleName;
-                ghcOptsByModuleName = ghcOptsByModuleName;
-              } ;
         topModuleSpec =
           let
             fld = moduleSpecFold' modSpecs;
