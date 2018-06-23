@@ -5,6 +5,7 @@
 }:
 
 with (callPackage ./modules.nix { inherit singleOut; });
+with (callPackage ./lib.nix {});
 
 rec {
     makeModuleSpec =
@@ -30,29 +31,33 @@ rec {
       moduleGhcOpts = modGhcOpts;
     };
 
-  # Create a module spec by following the dependencies. This assumes that the
-  # specified module is a "Main" module.
-  # TODO: pretty sure things will silently go wrong if several modules in the
-  # dependency tree share a common name
-    makeModuleSpecRec =
-    baseByModuleName:
-    filesByModuleName:
-    dirsByModuleName:
-    depsByModuleName:
-    ghcOptsByModuleName:
-    lib.fix
-      (f: modName:
-        makeModuleSpec
-          modName
-          (map f
-            (lib.lists.filter (mn: baseByModuleName mn != null) (listModuleImports baseByModuleName modName))
-          )
-          (filesByModuleName modName)
-          (dirsByModuleName modName)
-          (baseByModuleName modName)
-          (depsByModuleName modName)
-          (ghcOptsByModuleName modName)
-      );
+
+    moduleSpecFold =
+      { baseByModuleName
+      , filesByModuleName
+      , dirsByModuleName
+      , depsByModuleName
+      , ghcOptsByModuleName
+      }:
+      result:
+    let
+      modImportsNames = modName:
+        lib.lists.filter
+          (modName': ! builtins.isNull (baseByModuleName modName'))
+          (listModuleImports baseByModuleName modName);
+    in
+      { f = modName:
+          makeModuleSpec
+            modName
+            (map (mn: result.${mn}) (modImportsNames modName))
+            (filesByModuleName modName)
+            (dirsByModuleName modName)
+            (baseByModuleName modName)
+            (depsByModuleName modName)
+            (ghcOptsByModuleName modName);
+        elemLabel = lib.id;
+        elemChildren = modImportsNames;
+      };
 
   # Returns a list of all modules in the module spec graph
   flattenModuleSpec = modSpec:
@@ -61,6 +66,7 @@ rec {
 
   allTransitiveDeps = allTransitiveLists "moduleDependencies";
   allTransitiveGhcOpts = allTransitiveLists "moduleGhcOpts";
+  allTransitiveImports = allTransitiveLists "moduleImports";
 
   allTransitiveLists = attr: modSpecs:
     lib.attrsets.attrNames

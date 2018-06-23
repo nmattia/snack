@@ -17,6 +17,7 @@ with (callPackage ./files.nix {});
 with (callPackage ./modules.nix { inherit singleOut; });
 with (callPackage ./module-spec.nix { inherit singleOut; });
 with (callPackage ./package-spec.nix { inherit singleOut; });
+with (callPackage ./lib.nix {});
 
 let
 
@@ -93,31 +94,34 @@ let
         ];
     };
 
-
-  # Returns an attribute set where the keys are the module names and the values
-  # are the '.o's
-  flattenModuleObjects = ghcWith: mod0:
-    lib.fix (f: acc0: mods:
-      let
-        insertMod = acc: mod:
-          if lib.attrsets.hasAttr mod.moduleName acc
-          then acc
-          else
-            let acc' = acc //
-              { "${mod.moduleName}" =
-                "${buildModule ghcWith mod}/${moduleToObject mod.moduleName}";
-              };
-            in f acc' mod.moduleImports;
-       in
-        lib.foldl insertMod acc0 mods
-      )
+  # Returns an attribute set where the keys are all the built module names and
+  # the values are the paths to the object files.
+  # mainModSpec: a "main" module
+  buildMain = ghcWith: mainModSpec:
+    buildModulesRec ghcWith
       # XXX: the main modules need special handling regarding the object name
-      { "${mod0.moduleName}" = "${buildModule ghcWith mod0}/Main.o";}
-      mod0.moduleImports;
+      { "${mainModSpec.moduleName}" =
+        "${buildModule ghcWith mainModSpec}/Main.o";}
+      mainModSpec.moduleImports;
+
+  buildLibrary = ghcWith: modSpecs:
+      buildModulesRec ghcWith {} modSpecs;
+
+  # Build the given modules (recursively) using the given accumulator to keep
+  # track of which modules have been built already
+  # XXX: doesn't work if several modules in the DAG have the same name
+  buildModulesRec = ghcWith: acc0: modSpecs:
+    foldDAGRec
+      { f = mod: "${buildModule ghcWith mod}/${moduleToObject mod.moduleName}";
+        elemLabel = mod: mod.moduleName;
+        elemChildren = mod: mod.moduleImports;
+      }
+      acc0
+      modSpecs;
 
   linkModuleObjects = ghcWith: mod: # main module
     let
-      objAttrs = flattenModuleObjects ghcWith mod;
+      objAttrs = buildMain ghcWith mod;
       objList = lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
       deps = allTransitiveDeps [mod];
       ghc = ghcWith deps;
@@ -216,20 +220,30 @@ let
         extraFiles =  topPkgSpec.packageExtraFiles;
         extraDirs = topPkgSpec.packageExtraDirectories;
         mainModName = topPkgSpec.packageMain;
+        moduleSpecFold' = moduleSpecFold
+              { baseByModuleName = baseByModuleName;
+                filesByModuleName = extraFiles;
+                dirsByModuleName = extraDirs;
+                depsByModuleName = depsByModuleName;
+                ghcOptsByModuleName = ghcOptsByModuleName;
+              } ;
         topModuleSpec =
-          makeModuleSpecRec
-            baseByModuleName
-            extraFiles
-            extraDirs
-            depsByModuleName
-            ghcOptsByModuleName
-            mainModName;
+          let
+            fld = moduleSpecFold' modSpecs;
+            modSpecs = foldDAG fld [mainModName];
+          in modSpecs.${mainModName};
       in
     {
       build =
-        linkModuleObjects
-          ghcWith
-          topModuleSpec;
+        if builtins.isNull mainModName
+        then
+          buildLibrary
+            ghcWith
+            (allTransitiveImports [topModuleSpec])
+        else
+          linkModuleObjects
+            ghcWith
+            topModuleSpec;
       ghci =
         ghciExecutable
           ghcWith
