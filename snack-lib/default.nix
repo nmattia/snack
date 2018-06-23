@@ -193,8 +193,6 @@ let
         done
         ${newGhc}/bin/ghci
         '';
-  traceType = x: builtins.trace (builtins.typeOf x) x;
-
 
   # Takes a package spec and returns (modSpecs -> Fold)
   modSpecFoldFromPackageSpec = pkgSpec:
@@ -214,14 +212,11 @@ let
             pkgSpec
             (abort "asking ghc options for external module: ${modName}")
             modName).packageGhcOpts;
-        base = pkgSpec.packageBase;
-        extraFiles =  pkgSpec.packageExtraFiles;
-        extraDirs = pkgSpec.packageExtraDirectories;
       in
         moduleSpecFold
           { baseByModuleName = baseByModuleName;
-            filesByModuleName = extraFiles;
-            dirsByModuleName = extraDirs;
+            filesByModuleName = pkgSpec.packageExtraFiles;
+            dirsByModuleName = pkgSpec.packageExtraDirectories;
             depsByModuleName = depsByModuleName;
             ghcOptsByModuleName = ghcOptsByModuleName;
           };
