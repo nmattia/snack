@@ -3,6 +3,7 @@
 #!nix-shell -I nixpkgs=./nix
 #!nix-shell -p snack-exe
 #!nix-shell -p shfmt
+#!nix-shell -p jq
 #!nix-shell --pure
 # vim: ft=sh sw=2 et
 
@@ -71,6 +72,11 @@ popd
 
 banner "Test library"
 pushd tests/library
+./test
+popd
+
+banner "Test library-2"
+pushd tests/library-2
 ./test
 popd
 
