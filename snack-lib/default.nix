@@ -7,6 +7,7 @@
 , stdenv
 , symlinkJoin
 , writeScript
+, writeText
 , runCommand
 , callPackage
 }:
@@ -104,6 +105,8 @@ let
         "${buildModule ghcWith mainModSpec}/Main.o";}
       mainModSpec.moduleImports;
 
+  # returns a attrset where the keys are the module names and the values are
+  # the modules' object file path
   buildLibrary = ghcWith: modSpecs:
       buildModulesRec ghcWith {} modSpecs;
 
@@ -148,8 +151,9 @@ let
   # module spec
   ghciWithMain = ghcWith: mainModSpec:
     let
-      ghcOpts = allTransitiveGhcOpts [mainModSpec];
-      ghc = ghcWith (allTransitiveDeps [mainModSpec]);
+      modSpecs = [mainModSpec];
+      ghcOpts = allTransitiveGhcOpts modSpecs;
+      ghc = ghcWith (allTransitiveDeps modSpecs);
       ghciArgs = lib.strings.escapeShellArgs
         (ghcOpts ++ absoluteModuleFiles);
       absoluteModuleFiles =
@@ -221,6 +225,7 @@ let
             ghcOptsByModuleName = ghcOptsByModuleName;
           };
 
+  # TODO: "executable" is a bad name
   executable = pkgDescr:
     let
       moduleSpecFold' = modSpecFoldFromPackageSpec topPkgSpec;
@@ -230,7 +235,19 @@ let
       mainModName = topPkgSpec.packageMain;
     in
       if builtins.isNull topPkgSpec.packageMain
-      then abort "Snack does not support building libraries!"
+      then
+        let
+          modNames = listModulesInDir topPkgSpec.packageBase;
+          fld = moduleSpecFold' modSpecs;
+          modSpecs = foldDAG fld modNames;
+        in
+          {
+            build =
+              writeText
+                "library-build"
+                (builtins.toJSON (buildLibrary ghcWith (builtins.attrValues modSpecs)));
+            ghci =  abort "No GHCi support for libraries!";
+          }
       else
         let
           mainModName = topPkgSpec.packageMain;
@@ -240,10 +257,9 @@ let
               modSpecs = foldDAG fld [mainModName];
             in modSpecs.${mainModName};
         in
-
-        { build = linkMainModule ghcWith mainModSpec;
-          ghci = ghciWithMain ghcWith mainModSpec;
-        };
+          { build = linkMainModule ghcWith mainModSpec;
+            ghci = ghciWithMain ghcWith mainModSpec;
+          };
 in
   {
     inherit
