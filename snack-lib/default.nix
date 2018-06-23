@@ -108,18 +108,22 @@ let
   # returns a attrset where the keys are the module names and the values are
   # the modules' object file path
   buildLibrary = ghcWith: modSpecs:
-      buildModulesRec ghcWith {} modSpecs;
+    buildModulesRec ghcWith {} modSpecs;
 
   # Build the given modules (recursively) using the given accumulator to keep
   # track of which modules have been built already
   # XXX: doesn't work if several modules in the DAG have the same name
-  buildModulesRec = ghcWith: acc0: modSpecs:
-    foldDAGRec
-      { f = mod: "${buildModule ghcWith mod}/${moduleToObject mod.moduleName}";
+  buildModulesRec = ghcWith: empty: modSpecs:
+    foldDAG
+      { f = mod:
+          { "${mod.moduleName}" =
+            "${buildModule ghcWith mod}/${moduleToObject mod.moduleName}";
+          };
         elemLabel = mod: mod.moduleName;
         elemChildren = mod: mod.moduleImports;
+        reduce = a: b: a // b;
+        empty = empty;
       }
-      acc0
       modSpecs;
 
   linkMainModule = ghcWith: mod: # main module
@@ -140,18 +144,16 @@ let
             -o $out/out
         '';
 
-  allModuleDirectories = modSpec:
-    lib.lists.concatLists
-    (
-    [ modSpec.moduleDirectories ]
-    ++ (lib.lists.concatMap allModuleDirectories modSpec.moduleImports)
-    );
-
   # Write a new ghci executable that loads all the modules defined in the
   # module spec
   ghciWithMain = ghcWith: mainModSpec:
     let
-      modSpecs = [mainModSpec];
+      imports = allTransitiveImports [mainModSpec];
+      modSpecs = [mainModSpec] ++ imports;
+    in ghciWithModules ghcWith modSpecs;
+
+  ghciWithModules = ghcWith: modSpecs:
+    let
       ghcOpts = allTransitiveGhcOpts modSpecs;
       ghc = ghcWith (allTransitiveDeps modSpecs);
       ghciArgs = lib.strings.escapeShellArgs
@@ -162,9 +164,9 @@ let
             builtins.toString (mod.moduleBase) +
               "/${moduleToFile mod.moduleName}"
           )
-          (flattenModuleSpec mainModSpec);
+          modSpecs;
 
-      dirs = allModuleDirectories mainModSpec;
+      dirs = allTransitiveDirectories modSpecs;
       newGhc =
         symlinkJoin
           { name = "ghci";
@@ -237,15 +239,16 @@ let
       then
         let
           modNames = listModulesInDir topPkgSpec.packageBase;
-          fld = moduleSpecFold' modSpecs;
-          modSpecs = foldDAG fld modNames;
+          fld = moduleSpecFold' modSpecs';
+          modSpecs' = foldDAG fld modNames;
+          modSpecs = builtins.attrValues modSpecs';
         in
           {
             build =
               writeText
                 "library-build"
-                (builtins.toJSON (buildLibrary ghcWith (builtins.attrValues modSpecs)));
-            ghci =  abort "No GHCi support for libraries!";
+                (builtins.toJSON (buildLibrary ghcWith modSpecs));
+            ghci = ghciWithModules ghcWith modSpecs;
           }
       else
         let
