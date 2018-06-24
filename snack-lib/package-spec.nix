@@ -13,6 +13,7 @@ rec {
     , main ? null
     , ghcOpts ? []
     , dependencies ? []
+    , extensions ? []
     , extra-files ? []
     , extra-directories ? []
     , packages ? []
@@ -20,6 +21,7 @@ rec {
     { packageMain = main;
       packageBase = src;
       packageGhcOpts = ghcOpts;
+      packageExtensions = extensions;
       packageDependencies = mkPerModuleAttr dependencies;
 
       # TODO: merge extra files and extra dirs together

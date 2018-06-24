@@ -15,6 +15,7 @@ rec {
     modDirs:
     modBase:
     modDeps:
+    modExts:
     modGhcOpts:
     { moduleName = modName;
 
@@ -29,6 +30,7 @@ rec {
         then modDeps
         else abort "module dependencies should be a list";
       moduleGhcOpts = modGhcOpts;
+      moduleExtensions = modExts;
     };
 
 
@@ -37,6 +39,7 @@ rec {
       , filesByModuleName
       , dirsByModuleName
       , depsByModuleName
+      , extsByModuleName
       , ghcOptsByModuleName
       }:
       result:
@@ -56,6 +59,7 @@ rec {
             (dirsByModuleName modName)
             (baseByModuleName modName)
             (depsByModuleName modName)
+            (extsByModuleName modName)
             (ghcOptsByModuleName modName);
           };
         empty = {} ;
@@ -71,6 +75,7 @@ rec {
 
   allTransitiveDeps = allTransitiveLists "moduleDependencies" lib.id;
   allTransitiveGhcOpts = allTransitiveLists "moduleGhcOpts" lib.id;
+  allTransitiveExtensions = allTransitiveLists "moduleExtensions" lib.id;
   allTransitiveDirectories =
     allTransitiveLists
       "moduleDirectories"

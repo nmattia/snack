@@ -25,7 +25,8 @@ let
   buildModule = ghcWith: modSpec:
     let
       ghc = ghcWith modSpec.moduleDependencies;
-      ghcOpts = modSpec.moduleGhcOpts;
+      exts = modSpec.moduleExtensions;
+      ghcOpts = modSpec.moduleGhcOpts ++ (map (x: "-X${x}") exts);
       ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
       objectName = modSpec.moduleName;
       builtDeps = map (buildModule ghcWith) modSpec.moduleImports;
@@ -154,7 +155,8 @@ let
 
   ghciWithModules = ghcWith: modSpecs:
     let
-      ghcOpts = allTransitiveGhcOpts modSpecs;
+      ghcOpts = allTransitiveGhcOpts modSpecs
+        ++ (map (x: "-X${x}") (allTransitiveExtensions modSpecs));
       ghc = ghcWith (allTransitiveDeps modSpecs);
       ghciArgs = lib.strings.escapeShellArgs
         (ghcOpts ++ absoluteModuleFiles);
@@ -213,6 +215,11 @@ let
             modName).packageDependencies
             modName
           ;
+        extsByModuleName = modName:
+          (pkgSpecByModuleName
+            pkgSpec
+            (abort "asking extensions for external module: ${modName}")
+            modName).packageExtensions;
         ghcOptsByModuleName = modName:
           (pkgSpecByModuleName
             pkgSpec
@@ -224,6 +231,7 @@ let
             filesByModuleName = pkgSpec.packageExtraFiles;
             dirsByModuleName = pkgSpec.packageExtraDirectories;
             depsByModuleName = depsByModuleName;
+            extsByModuleName = extsByModuleName;
             ghcOptsByModuleName = ghcOptsByModuleName;
           };
 
