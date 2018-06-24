@@ -80,6 +80,11 @@ pushd tests/library-2
 ./test
 popd
 
+banner "Test extensions"
+pushd tests/extensions
+./test
+popd
+
 banner "Test stack-exe formatting"
 list=$(shfmt -i 2 -l bin/snack)
 if [[ -n "$list" ]]; then
