@@ -4,6 +4,7 @@
 #!nix-shell -p snack-exe
 #!nix-shell -p shfmt
 #!nix-shell -p jq
+#!nix-shell -p nix
 #!nix-shell --pure
 # vim: ft=sh sw=2 et
 
@@ -12,14 +13,14 @@ set -euo pipefail
 ## Functions
 
 banner() {
-    echo
-    echo "--- $*"
+  echo
+  echo "--- $*"
 }
 
 capture_io() {
-    OUT_FILE="$1"
+  OUT_FILE="$1"
 
-    cat <<END_HEREDOC
+  cat <<END_HEREDOC
 import GHC.IO.Handle
 import System.IO
 old_stdout <- hDuplicate stdout
@@ -33,8 +34,6 @@ END_HEREDOC
 }
 
 export -f capture_io
-
-export SNACK="snack -n $(readlink -f ./nix)"
 
 fail() {
   echo "ERROR: $*"
@@ -85,9 +84,9 @@ pushd tests/extensions
 ./test
 popd
 
-banner "Test stack-exe formatting"
-list=$(shfmt -i 2 -l bin/snack)
+banner "Test this file's formatting"
+list=$(shfmt -i 2 -l script/test)
 if [[ -n "$list" ]]; then
-  fail "Please apply script/snack-fmt to format bin/snack"
+  fail "Please apply script/snack-fmt to format script/test"
 fi
 echo OK

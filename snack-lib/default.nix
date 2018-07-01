@@ -6,7 +6,7 @@
 , rsync
 , stdenv
 , symlinkJoin
-, writeScript
+, writeScriptBin
 , writeText
 , runCommand
 , callPackage
@@ -135,15 +135,22 @@ let
       ghc = ghcWith deps;
       ghcOptsArgs = lib.strings.escapeShellArgs mod.moduleGhcOpts;
       packageList = map (p: "-package ${p}") deps;
-    in runCommand "linker" {}
+      relExePath = "bin/${lib.strings.toLower mod.moduleName}";
+      drv = runCommand "linker" {}
         ''
-          mkdir -p $out
+          mkdir -p $out/bin
           ${ghc}/bin/ghc \
             ${lib.strings.escapeShellArgs packageList} \
             ${lib.strings.escapeShellArgs objList} \
             ${ghcOptsArgs} \
-            -o $out/out
+            -o $out/${relExePath}
         '';
+    in
+      {
+        out = drv;
+        relExePath = relExePath;
+      };
+
 
   # Write a new ghci executable that loads all the modules defined in the
   # module spec
@@ -182,8 +189,9 @@ let
           };
     in
       # This symlinks the extra dirs to $PWD for GHCi to work
-      writeScript "ghci-with-files"
+      writeScriptBin "ghci-with-files"
         ''
+        #!/usr/bin/env bash
         set -euo pipefail
 
         TRAPS=""
@@ -253,10 +261,23 @@ let
         in
           {
             build =
-              writeText
-                "library-build"
-                (builtins.toJSON (buildLibrary ghcWith modSpecs));
-            ghci = ghciWithModules ghcWith modSpecs;
+              # This json is a bit different than the other ones, because it's
+              # a map of modules to object files (rather than out_path +
+              # exe_path)
+              { json = writeText "build_output"
+                  (builtins.toJSON (buildLibrary ghcWith modSpecs));
+              };
+            ghci =
+              let
+                drv = ghciWithModules ghcWith modSpecs;
+                json =
+                  { out_path = "${drv.out}";
+                    exe_path = "${drv.out}/bin/ghci-with-files";
+                  };
+              in
+                { out = drv.out;
+                  json = writeText "ghci_output" (builtins.toJSON json);
+                };
           }
       else
         let
@@ -267,8 +288,29 @@ let
               modSpecs = foldDAG fld [mainModName];
             in modSpecs.${mainModName};
         in
-          { build = linkMainModule ghcWith mainModSpec;
-            ghci = ghciWithMain ghcWith mainModSpec;
+          { build =
+              let
+                drv = linkMainModule ghcWith mainModSpec;
+                json =
+                  { out_path = "${drv.out}";
+                    exe_path = "${drv.out}/${drv.relExePath}";
+                  };
+              in
+                { out = drv.out;
+                  json = writeText "build_output" (builtins.toJSON json);
+                };
+
+            ghci =
+              let
+                drv = ghciWithMain ghcWith mainModSpec;
+                json =
+                  { out_path = "${drv.out}";
+                    exe_path = "${drv.out}/bin/ghci-with-files";
+                  };
+                in
+                  { out = drv.out;
+                    json = writeText "ghci_output" (builtins.toJSON json);
+                  };
           };
 in
   {
