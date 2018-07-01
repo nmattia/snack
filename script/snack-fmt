@@ -1,4 +1,4 @@
 #!/usr/bin/env nix-shell
 #!nix-shell -p shfmt -i bash
 cd "$(dirname "$0")/.."
-shfmt -i 2 -w bin/snack
+shfmt -i 2 -w script/test

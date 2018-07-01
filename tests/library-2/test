@@ -5,11 +5,11 @@ set -euo pipefail
 
 TMP_FILE=$(mktemp)
 
-cat $($SNACK build) | jq -M 'keys' > $TMP_FILE
+cat $(snack build) | jq -M 'keys' > $TMP_FILE
 
 diff golden.jq $TMP_FILE
 
-capture_io "$TMP_FILE" main | $SNACK ghci
+capture_io "$TMP_FILE" main | snack ghci
 diff golden $TMP_FILE
 
 rm $TMP_FILE
