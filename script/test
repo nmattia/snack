@@ -1,9 +1,7 @@
 #!/usr/bin/env nix-shell
 #!nix-shell -i bash
 #!nix-shell -I nixpkgs=./nix
-#!nix-shell -p snack-exe
 #!nix-shell -p shfmt
-#!nix-shell -p jq
 #!nix-shell -p nix
 #!nix-shell --pure
 # vim: ft=sh sw=2 et
@@ -17,24 +15,6 @@ banner() {
   echo "--- $*"
 }
 
-capture_io() {
-  OUT_FILE="$1"
-
-  cat <<END_HEREDOC
-import GHC.IO.Handle
-import System.IO
-old_stdout <- hDuplicate stdout
-:{
-withFile "$OUT_FILE" WriteMode $ \\h -> do
-    hDuplicateTo h stdout
-    $2
-    hDuplicateTo old_stdout stdout
-:}
-END_HEREDOC
-}
-
-export -f capture_io
-
 fail() {
   echo "ERROR: $*"
   exit 1
@@ -44,45 +24,7 @@ fail() {
 
 cd "$(dirname "$0")/.."
 
-banner "Test packages"
-pushd tests/packages
-./test
-popd
-
-banner "Test Template Haskell"
-pushd tests/template-haskell
-./test
-popd
-
-banner "Test Template Haskell 2"
-pushd tests/template-haskell-2
-./test
-popd
-
-banner "Test Template Haskell 3"
-pushd tests/template-haskell-3
-./test
-popd
-
-banner "Test Template Haskell 4"
-pushd tests/template-haskell-4
-./test
-popd
-
-banner "Test library"
-pushd tests/library
-./test
-popd
-
-banner "Test library-2"
-pushd tests/library-2
-./test
-popd
-
-banner "Test extensions"
-pushd tests/extensions
-./test
-popd
+nix-build --option build-use-sandbox false --no-out-link ./tests.nix
 
 banner "Test this file's formatting"
 list=$(shfmt -i 2 -l script/test)
