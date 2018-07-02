@@ -18,6 +18,7 @@ with (callPackage ./files.nix {});
 with (callPackage ./modules.nix { inherit singleOut; });
 with (callPackage ./module-spec.nix { inherit singleOut; });
 with (callPackage ./package-spec.nix { inherit singleOut; });
+with (callPackage ./hpack.nix { inherit singleOut; });
 with (callPackage ./lib.nix {});
 
 let
@@ -312,9 +313,17 @@ let
                     json = writeText "ghci_output" (builtins.toJSON json);
                   };
           };
+      packageYaml = pyam:
+        let
+          project = snackNixFromHPack pyam;
+        in
+          { library = executable project.library;
+            executables = lib.attrsets.mapAttrs (_: v: executable v) project.executables;
+          };
 in
   {
     inherit
     executable
+    packageYaml
     ;
   }

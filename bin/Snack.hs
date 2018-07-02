@@ -32,12 +32,19 @@ import qualified Shelly as S
 
 data Mode
   = Standalone SnackNix -- Reads a snack.nix file
+  | HPack PackageYaml
 
 -- | Like a FilePath, but Nix friendly
 newtype SnackNix = SnackNix { unSnackNix :: FilePath }
 
+newtype PackageYaml = PackageYaml { unPackageYaml :: FilePath }
+
 mkSnackNix :: FilePath -> SnackNix
 mkSnackNix = SnackNix -- XXX: this is not nix friendly, but it's ok, because
+  -- it'll be gone soon
+  --
+mkPackageYaml :: FilePath -> PackageYaml
+mkPackageYaml = PackageYaml -- XXX: this is not nix friendly, but it's ok, because
   -- it'll be gone soon
 
 data Command
@@ -66,14 +73,24 @@ instance Aeson.FromJSON Project where
 
 parseMode :: Opts.Parser Mode
 parseMode =
-    Opts.flag Standalone Standalone
-      (Opts.long "--standalone")
+    -- Opts.flag Standalone Standalone
+      -- (Opts.long "standalone")
 
-      <*> (mkSnackNix <$>
+    ((Standalone . mkSnackNix) <$>
         Opts.strOption
-        (Opts.long "--snack-nix"
+        (Opts.long "snack-nix"
         <> Opts.short 's'
         <> Opts.value "./snack.nix"
+        <> Opts.metavar "PATH")
+        )
+    <|>
+    -- Opts.flag HPack HPack
+      -- (Opts.long "hpack")
+
+    ((HPack . mkPackageYaml) <$>
+        Opts.strOption
+        (Opts.long "package-yaml"
+        <> Opts.value "./package.yaml"
         <> Opts.metavar "PATH")
         )
 
@@ -122,6 +139,49 @@ snackBuildGhci snackNix = do
       , "--argstr", "specJson", specJson
       , "--no-out-link"
       , "-A", "ghci.json"
+      ]
+    json <- liftIO $ BS.readFile (T.unpack out)
+    let Just proj = Aeson.decodeStrict' json
+    pure proj
+
+snackBuildHPack :: PackageYaml -> Sh Project
+snackBuildHPack packageYaml = do
+    out <- runStdin1
+      (T.pack [i|
+        { base, packageYaml, lib64, specJson }:
+        let
+          spec = builtins.fromJSON specJson;
+          pkgs = import (builtins.fetchTarball
+            { url = "https://github.com/${spec.owner}/${spec.repo}/archive/${spec.rev}.tar.gz";
+              sha256 = spec.sha256;
+            }) {} ;
+          libDir =
+            let
+              b64 = pkgs.writeTextFile { name = "lib-b64"; text = lib64; };
+            in
+              pkgs.runCommand "snack-lib" {}
+              ''
+                cat ${b64} | base64 --decode > out.tar.gz
+                mkdir -p $out
+                tar -C $out -xzf out.tar.gz
+                chmod +w $out
+              '';
+          snack = pkgs.callPackage libDir {};
+          proj = snack.packageYaml packageYaml;
+        in
+          { build = proj.library.build;
+            ghci = proj.librayr.build;
+          }
+      |]
+      )
+      "nix-build"
+      [ "-"
+      , "--arg", "packageYaml", T.pack $ unPackageYaml packageYaml
+      , "--argstr", "lib64", libb64
+      , "--argstr", "specJson", specJson
+      , "--arg", "base", "./app"
+      , "--no-out-link"
+      , "-A", "build.json"
       ]
     json <- liftIO $ BS.readFile (T.unpack out)
     let Just proj = Aeson.decodeStrict' json
@@ -178,6 +238,14 @@ runCommand (Standalone snackNix) = \case
     snackRun build = do
       fp <- S.shelly $ S.print_stdout False $ exePath <$> build snackNix
       executeFile fp True [] Nothing
+runCommand (HPack packageYaml) = \case
+  Build -> S.shelly $ void $ snackBuildHPack packageYaml
+  Run -> undefined -- snackRun snackBuild
+  Ghci -> undefined -- snackRun snackBuildGhci
+  -- where
+    -- snackRun build = do
+      -- fp <- S.shelly $ S.print_stdout False $ exePath <$> build packageYaml
+      -- executeFile fp True [] Nothing
 
 parseCommand :: Opts.Parser Command
 parseCommand =
