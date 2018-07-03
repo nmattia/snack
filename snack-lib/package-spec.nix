@@ -34,7 +34,7 @@ rec {
     if builtins.isList attr
     then (_: attr)
     else if builtins.isAttrs attr
-    then (x: attr.${x})
+    then (x: if builtins.hasAttr x attr then attr.${x} else [])
     else if builtins.isFunction attr
     then attr
     else

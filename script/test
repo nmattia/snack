@@ -49,45 +49,45 @@ fail() {
 
 cd "$(dirname "$0")/.."
 
-#banner "Test packages"
-#pushd tests/packages
-#./test
-#popd
+banner "Test packages"
+pushd tests/packages
+./test
+popd
 
-#banner "Test Template Haskell"
-#pushd tests/template-haskell
-#./test
-#popd
+banner "Test Template Haskell"
+pushd tests/template-haskell
+./test
+popd
 
-#banner "Test Template Haskell 2"
-#pushd tests/template-haskell-2
-#./test
-#popd
+banner "Test Template Haskell 2"
+pushd tests/template-haskell-2
+./test
+popd
 
-#banner "Test Template Haskell 3"
-#pushd tests/template-haskell-3
-#./test
-#popd
+banner "Test Template Haskell 3"
+pushd tests/template-haskell-3
+./test
+popd
 
-#banner "Test Template Haskell 4"
-#pushd tests/template-haskell-4
-#./test
-#popd
+banner "Test Template Haskell 4"
+pushd tests/template-haskell-4
+./test
+popd
 
-#banner "Test library"
-#pushd tests/library
-#./test
-#popd
+banner "Test library"
+pushd tests/library
+./test
+popd
 
-#banner "Test library-2"
-#pushd tests/library-2
-#./test
-#popd
+banner "Test library-2"
+pushd tests/library-2
+./test
+popd
 
-#banner "Test extensions"
-#pushd tests/extensions
-#./test
-#popd
+banner "Test extensions"
+pushd tests/extensions
+./test
+popd
 
 banner "HPack"
 pushd tests/hpack
