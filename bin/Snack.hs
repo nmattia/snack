@@ -148,7 +148,7 @@ snackBuildHPack :: PackageYaml -> Sh Project
 snackBuildHPack packageYaml = do
     out <- runStdin1
       (T.pack [i|
-        { base, packageYaml, lib64, specJson }:
+        { packageYaml, lib64, specJson }:
         let
           spec = builtins.fromJSON specJson;
           pkgs = import (builtins.fetchTarball
@@ -179,7 +179,6 @@ snackBuildHPack packageYaml = do
       , "--arg", "packageYaml", T.pack $ unPackageYaml packageYaml
       , "--argstr", "lib64", libb64
       , "--argstr", "specJson", specJson
-      , "--arg", "base", "./app"
       , "--no-out-link"
       , "-A", "build.json"
       ]
@@ -240,12 +239,12 @@ runCommand (Standalone snackNix) = \case
       executeFile fp True [] Nothing
 runCommand (HPack packageYaml) = \case
   Build -> S.shelly $ void $ snackBuildHPack packageYaml
-  Run -> undefined -- snackRun snackBuild
-  Ghci -> undefined -- snackRun snackBuildGhci
-  -- where
-    -- snackRun build = do
-      -- fp <- S.shelly $ S.print_stdout False $ exePath <$> build packageYaml
-      -- executeFile fp True [] Nothing
+  Run -> snackRun snackBuildHPack
+  Ghci -> undefined -- snackRun snackBuildHPackGhci
+  where
+    snackRun build = do
+      fp <- S.shelly $ S.print_stdout False $ exePath <$> build packageYaml
+      executeFile fp True [] Nothing
 
 parseCommand :: Opts.Parser Command
 parseCommand =
