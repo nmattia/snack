@@ -12,16 +12,14 @@
 , callPackage
 }:
 
+with (callPackage ./build.nix {});
 with (callPackage ./files.nix {});
-
-# why is "inherit" needed?
+with (callPackage ./ghci.nix {});
+with (callPackage ./lib.nix {});
 with (callPackage ./modules.nix {});
 with (callPackage ./module-spec.nix {});
 with (callPackage ./package-spec.nix {});
 with (callPackage ./hpack.nix {});
-with (callPackage ./lib.nix {});
-with (callPackage ./build.nix {});
-with (callPackage ./ghci.nix {});
 
 let
 
