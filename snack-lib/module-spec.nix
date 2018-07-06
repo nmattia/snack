@@ -5,6 +5,7 @@
 }:
 
 with (callPackage ./modules.nix { inherit singleOut; });
+with (callPackage ./package-spec.nix { inherit singleOut; });
 with (callPackage ./lib.nix {});
 
 rec {
@@ -99,4 +100,39 @@ rec {
         }
         modSpecs
     );
+
+
+  # Takes a package spec and returns (modSpecs -> Fold)
+  modSpecFoldFromPackageSpec = pkgSpec:
+      let
+        baseByModuleName = modName:
+          let res = pkgSpecByModuleName pkgSpec null modName;
+          in if res == null then null else res.packageBase;
+        depsByModuleName = modName:
+          (pkgSpecByModuleName
+            pkgSpec
+            (abort "asking dependencies for external module: ${modName}")
+            modName).packageDependencies
+            modName
+          ;
+        extsByModuleName = modName:
+          (pkgSpecByModuleName
+            pkgSpec
+            (abort "asking extensions for external module: ${modName}")
+            modName).packageExtensions;
+        ghcOptsByModuleName = modName:
+          (pkgSpecByModuleName
+            pkgSpec
+            (abort "asking ghc options for external module: ${modName}")
+            modName).packageGhcOpts;
+      in
+        moduleSpecFold
+          { baseByModuleName = baseByModuleName;
+            filesByModuleName = pkgSpec.packageExtraFiles;
+            dirsByModuleName = pkgSpec.packageExtraDirectories;
+            depsByModuleName = depsByModuleName;
+            extsByModuleName = extsByModuleName;
+            ghcOptsByModuleName = ghcOptsByModuleName;
+          };
+  
 }
