@@ -1,9 +1,8 @@
 { lib
-, singleOut
 , callPackage
 }:
 
-with (callPackage ./modules.nix { inherit singleOut; });
+with (callPackage ./modules.nix {});
 
 rec {
 

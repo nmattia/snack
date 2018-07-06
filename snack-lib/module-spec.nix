@@ -1,11 +1,10 @@
 # Functions related to module specs
 { lib
 , callPackage
-, singleOut
 }:
 
-with (callPackage ./modules.nix { inherit singleOut; });
-with (callPackage ./package-spec.nix { inherit singleOut; });
+with (callPackage ./modules.nix {});
+with (callPackage ./package-spec.nix {});
 with (callPackage ./lib.nix {});
 
 rec {

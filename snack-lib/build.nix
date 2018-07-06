@@ -1,8 +1,8 @@
-{ runCommand, lib, singleOut, callPackage, stdenv, rsync, symlinkJoin }:
+{ runCommand, lib, callPackage, stdenv, rsync, symlinkJoin }:
 
-with (callPackage ./modules.nix { inherit singleOut; });
+with (callPackage ./modules.nix {});
 with (callPackage ./lib.nix {});
-with (callPackage ./module-spec.nix { inherit singleOut; });
+with (callPackage ./module-spec.nix {});
 rec {
 
   # Returns an attribute set where the keys are all the built module names and

@@ -1,6 +1,6 @@
-{ lib, glibcLocales, callPackage, singleOut, writeText, runCommand, haskellPackages }:
+{ lib, glibcLocales, callPackage, writeText, runCommand, haskellPackages }:
 
-with (callPackage ./modules.nix { inherit singleOut; });
+with (callPackage ./modules.nix {});
 
 let
     y2j = runCommand "yaml2json"
@@ -18,8 +18,6 @@ let
         "${y2j} ${writeText "y2j" text}  > $out"
         );
       in builtins.fromJSON json;
-
-
 in
 {
   snackNixFromHPack = packageYaml:

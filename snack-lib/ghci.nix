@@ -1,7 +1,7 @@
-{ makeWrapper, symlinkJoin, lib, callPackage, singleOut, writeScriptBin }:
+{ makeWrapper, symlinkJoin, lib, callPackage, writeScriptBin }:
 
-with (callPackage ./module-spec.nix { inherit singleOut; });
-with (callPackage ./modules.nix { inherit singleOut; });
+with (callPackage ./module-spec.nix {});
+with (callPackage ./modules.nix {});
 
 rec {
 

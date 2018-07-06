@@ -15,13 +15,13 @@
 with (callPackage ./files.nix {});
 
 # why is "inherit" needed?
-with (callPackage ./modules.nix { inherit singleOut; });
-with (callPackage ./module-spec.nix { inherit singleOut; });
-with (callPackage ./package-spec.nix { inherit singleOut; });
-with (callPackage ./hpack.nix { inherit singleOut; });
+with (callPackage ./modules.nix {});
+with (callPackage ./module-spec.nix {});
+with (callPackage ./package-spec.nix {});
+with (callPackage ./hpack.nix {});
 with (callPackage ./lib.nix {});
-with (callPackage ./build.nix { inherit singleOut; });
-with (callPackage ./ghci.nix { inherit singleOut; });
+with (callPackage ./build.nix {});
+with (callPackage ./ghci.nix {});
 
 let
 
