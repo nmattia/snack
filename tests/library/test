@@ -3,12 +3,18 @@
 
 set -euo pipefail
 
-snack build
-snack run | diff golden -
+test() {
+  $SNACK build
+  $SNACK run | diff golden -
 
-TMP_FILE=$(mktemp)
+  TMP_FILE=$(mktemp)
 
-capture_io "$TMP_FILE" main | snack ghci
+  capture_io "$TMP_FILE" main | $SNACK ghci
 
-diff golden $TMP_FILE
-rm $TMP_FILE
+  diff golden $TMP_FILE
+  rm $TMP_FILE
+}
+
+SNACK="snack" test
+SNACK="snack -s ./snack.nix" test
+SNACK="snack --package-yaml ./package.yaml" test

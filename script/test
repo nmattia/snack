@@ -1,14 +1,19 @@
 #!/usr/bin/env nix-shell
 #!nix-shell -i bash
 #!nix-shell -I nixpkgs=./nix
-#!nix-shell -p snack-exe
-#!nix-shell -p shfmt
+#!nix-shell -p git
 #!nix-shell -p jq
 #!nix-shell -p nix
+#!nix-shell -p shfmt
+#!nix-shell -p snack-exe
+#!nix-shell -p glibcLocales
 #!nix-shell --pure
 # vim: ft=sh sw=2 et
 
 set -euo pipefail
+
+export LC_ALL="en_US.utf-8"
+export LANG="en_US.utf-8"
 
 ## Functions
 
@@ -81,6 +86,11 @@ popd
 
 banner "Test extensions"
 pushd tests/extensions
+./test
+popd
+
+banner "HPack"
+pushd tests/hpack
 ./test
 popd
 

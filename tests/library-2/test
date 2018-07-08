@@ -3,13 +3,18 @@
 
 set -euo pipefail
 
-TMP_FILE=$(mktemp)
+test() {
+  TMP_FILE=$(mktemp)
 
-cat $(snack build) | jq -M 'keys' > $TMP_FILE
+  cat $($SNACK build) | jq -M '.result | keys' > $TMP_FILE
 
-diff golden.jq $TMP_FILE
+  diff golden.jq $TMP_FILE
 
-capture_io "$TMP_FILE" main | snack ghci
-diff golden $TMP_FILE
+  capture_io "$TMP_FILE" main | $SNACK ghci
+  diff golden $TMP_FILE
+  rm $TMP_FILE
+}
 
-rm $TMP_FILE
+SNACK="snack" test
+SNACK="snack -s ./snack.nix" test
+# Note: no HPack test, because HPack doesn't support multi library

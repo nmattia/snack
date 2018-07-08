@@ -1,0 +1,13 @@
+name: snack-library-test
+
+dependencies:
+    - conduit
+
+library:
+    source-dirs: src
+
+executable:
+    main: Foo.hs
+    source-dirs: app
+    dependencies:
+        - snack-library-test

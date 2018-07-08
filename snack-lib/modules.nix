@@ -2,7 +2,6 @@
 { lib
 , callPackage
 , runCommand
-, singleOut
 , haskellPackages
 }:
 

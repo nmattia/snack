@@ -1,0 +1,6 @@
+name: snack-packages-test
+dependencies:
+    - conduit
+executable:
+    main: Foo.hs
+    source-dirs: src
