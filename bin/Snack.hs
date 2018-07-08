@@ -1,35 +1,32 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE MonadFailDesugaring #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Main where
 
 import Control.Applicative
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Aeson ((.:))
+import Data.Aeson (FromJSON, (.:), (.:?))
 import Data.FileEmbed (embedStringFile)
 import Data.List (intercalate)
 import Data.Semigroup ((<>))
-import Data.String (fromString)
 import Data.String.Interpolate
 import Shelly (Sh)
 import System.Posix.Process (executeFile)
+import UnliftIO.Exception
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
+import qualified Data.Map as Map
 import qualified Data.Text as T
 import qualified Options.Applicative as Opts
 import qualified Shelly as S
-
-{-
-
-  TODO:
-    Mode
-      = HPack HPackPah
-      | Standalone SnackNix
-      | Discovery (Either HPackPath SnackNix)
--}
 
 data Mode
   = Standalone SnackNix -- Reads a snack.nix file
@@ -63,15 +60,6 @@ data Options = Options
   , command :: Command
   }
 
-data Project = Project
-  { outPath :: FilePath
-  , exePath :: FilePath
-  }
-
-instance Aeson.FromJSON Project where
-  parseJSON = Aeson.withObject "project" $ \o ->
-    Project <$> o .: "out_path" <*> o .: "exe_path"
-
 parseMode :: Opts.Parser Mode
 parseMode =
     ((Standalone . mkSnackNix) <$>
@@ -93,10 +81,65 @@ parseMode =
 options :: Opts.Parser Options
 options = Options <$> parseMode <*> parseCommand
 
-snackGhci :: SnackNix -> Sh ()
-snackGhci snackNix = do
-    path <- S.print_stdout False $ exePath <$> snackBuildGhci snackNix
-    S.print_stdout True $ run_ (fromString path) []
+newtype ModuleName = ModuleName { unModuleName :: T.Text }
+  deriving newtype (Ord, Eq, Aeson.FromJSONKey)
+  deriving stock Show
+
+data BuildResult
+  = BuiltLibrary LibraryBuild
+  | BuiltExecutable ExecutableBuild
+  | BuiltMulti MultiBuild
+  | BuiltGhci GhciBuild
+  deriving Show
+
+instance Aeson.FromJSON BuildResult where
+    parseJSON v =
+      BuiltLibrary <$> (guardBuildType "library" v)
+      <|> BuiltExecutable <$> (guardBuildType "executable" v)
+      <|> BuiltMulti <$> (guardBuildType "multi" v)
+      <|> BuiltGhci <$> (guardBuildType "ghci" v)
+      where
+        guardBuildType :: FromJSON a => T.Text -> Aeson.Value -> Aeson.Parser a
+        guardBuildType ty = Aeson.withObject "build result" $ \o -> do
+          bty <- o .: "build_type"
+          guard (bty == ty)
+          Aeson.parseJSON =<< o .: "result"
+
+newtype GhciBuild = GhciBuild
+  { ghciExePath :: NixPath
+  }
+    deriving stock Show
+
+instance FromJSON GhciBuild where
+  parseJSON = Aeson.withObject "ghci build" $ \o ->
+    GhciBuild <$> o .: "ghci_path"
+
+-- The kinds of builds: library, executable, or a mix of both (currently only
+-- for HPack)
+newtype LibraryBuild = LibraryBuild
+  { unLibraryBuild :: Map.Map ModuleName NixPath }
+  deriving newtype FromJSON
+  deriving stock Show
+
+newtype ExecutableBuild = ExecutableBuild
+  { exePath :: NixPath }
+  deriving stock Show
+
+instance FromJSON ExecutableBuild where
+  parseJSON = Aeson.withObject "executable build" $ \o ->
+    ExecutableBuild <$> o .: "exe_path"
+
+data MultiBuild = MultiBuild
+  { librayBuild :: Maybe LibraryBuild
+  , executableBuilds :: Map.Map T.Text ExecutableBuild
+  }
+  deriving stock Show
+
+instance Aeson.FromJSON MultiBuild where
+  parseJSON = Aeson.withObject "multi build" $ \o ->
+    MultiBuild
+      <$> o .:? "library"
+      <*> o .: "executables"
 
 data NixArg = NixArg
   { argType :: NixArgType
@@ -111,9 +154,17 @@ data NixArgType
 newtype NixExpr = NixExpr { unNixExpr :: T.Text }
 
 newtype NixPath = NixPath { unNixPath :: T.Text }
+  deriving newtype FromJSON
+  deriving stock Show
 
-snackBuildWith :: [NixArg] -> NixExpr -> Sh NixPath
-snackBuildWith extraNixArgs nixExpr =
+decodeOrFail :: FromJSON a => BS.ByteString -> Sh a
+decodeOrFail bs = case Aeson.decodeStrict' bs of
+    Just foo -> pure foo
+    Nothing -> throwIO $ userError $ unlines
+      [ "could not decode " <> show bs ]
+
+nixBuild :: [NixArg] -> NixExpr -> Sh NixPath
+nixBuild extraNixArgs nixExpr =
     NixPath <$> runStdin1
       (T.pack [i|
         { #{ intercalate "," funArgs } }:
@@ -159,65 +210,79 @@ snackBuildWith extraNixArgs nixExpr =
       { Arg -> "--arg"; ArgStr -> "--argstr" }
       : [ argName narg , argValue narg ]
 
-snackBuild :: SnackNix -> Sh Project
+snackBuild :: SnackNix -> Sh BuildResult
 snackBuild snackNix = do
-    NixPath out <- snackBuildWith
+    NixPath out <- nixBuild
       [ NixArg
           { argName = "snackNix"
           , argValue = T.pack $ unSnackNix snackNix
           , argType = Arg
           }
       ]
-      $ NixExpr "(snack.executable (import snackNix)).build.json"
-    json <- liftIO $ BS.readFile (T.unpack out)
-    let Just proj = Aeson.decodeStrict' json
-    pure proj
+      $ NixExpr "snack.inferSnackBuild snackNix"
+    decodeOrFail =<< liftIO (BS.readFile $ T.unpack out)
 
-snackBuildGhci :: SnackNix -> Sh Project
-snackBuildGhci snackNix = do
-    NixPath out <- snackBuildWith
+snackGhci :: SnackNix -> Sh GhciBuild
+snackGhci snackNix = do
+    NixPath out <- nixBuild
       [ NixArg
           { argName = "snackNix"
           , argValue = T.pack $ unSnackNix snackNix
           , argType = Arg
           }
       ]
-      $ NixExpr "(snack.executable (import snackNix)).ghci.json"
-    json <- liftIO $ BS.readFile (T.unpack out)
-    let Just proj = Aeson.decodeStrict' json
-    pure proj
+      $ NixExpr "snack.inferSnackGhci snackNix"
+    liftIO (BS.readFile (T.unpack out)) >>= decodeOrFail >>= \case
+      BuiltGhci g -> pure g
+      b -> throwIO $ userError $ "Expected GHCi build, got " <> show b
 
-snackBuildHPack :: PackageYaml -> Sh Project
+snackBuildHPack :: PackageYaml -> Sh BuildResult
 snackBuildHPack packageYaml = do
-    NixPath out <- snackBuildWith
+    NixPath out <- nixBuild
       [ NixArg
           { argName = "packageYaml"
           , argValue = T.pack $ unPackageYaml packageYaml
           , argType = Arg
           }
       ]
-      $ NixExpr "(snack.packageYaml packageYaml).library.build.json"
-    json <- liftIO $ BS.readFile (T.unpack out)
-    let Just proj = Aeson.decodeStrict' json
-    pure proj
+      $ NixExpr "snack.inferHPackBuild packageYaml"
+    decodeOrFail =<< liftIO (BS.readFile (T.unpack out))
+
+snackGhciHPack :: PackageYaml -> Sh GhciBuild
+snackGhciHPack packageYaml = do
+    NixPath out <- nixBuild
+      [ NixArg
+          { argName = "packageYaml"
+          , argValue = T.pack $ unPackageYaml packageYaml
+          , argType = Arg
+          }
+      ]
+      $ NixExpr "snack.inferHPackGhci packageYaml"
+    liftIO (BS.readFile (T.unpack out)) >>= decodeOrFail >>= \case
+      BuiltGhci g -> pure g
+      b -> throwIO $ userError $ "Expected GHCi build, got " <> show b
 
 runCommand :: Mode -> Command -> IO ()
 runCommand (Standalone snackNix) = \case
   Build -> S.shelly $ void $ snackBuild snackNix
-  Run -> snackRun snackBuild
-  Ghci -> snackRun snackBuildGhci
-  where
-    snackRun build = do
-      fp <- S.shelly $ S.print_stdout False $ exePath <$> build snackNix
-      executeFile fp True [] Nothing
+  Run -> quiet (snackBuild snackNix) >>= runBuildResult
+  Ghci -> runExe =<< ghciExePath <$> (quiet $ snackGhci snackNix)
 runCommand (HPack packageYaml) = \case
   Build -> S.shelly $ void $ snackBuildHPack packageYaml
-  Run -> snackRun snackBuildHPack
-  Ghci -> undefined -- snackRun snackBuildHPackGhci
-  where
-    snackRun build = do
-      fp <- S.shelly $ S.print_stdout False $ exePath <$> build packageYaml
-      executeFile fp True [] Nothing
+  Run -> quiet (snackBuildHPack packageYaml) >>= runBuildResult
+  Ghci -> runExe =<< ghciExePath <$> (quiet $ snackGhciHPack packageYaml)
+
+runBuildResult :: BuildResult -> IO ()
+runBuildResult = \case
+    BuiltExecutable (ExecutableBuild p) -> runExe p
+    BuiltMulti b
+      | [ExecutableBuild exe] <- Map.elems (executableBuilds b) -> runExe exe
+    b -> fail $ "Unexpected build type: " <> show b
+
+quiet :: Sh a -> IO a
+quiet = S.shelly . S.print_stdout False
+runExe :: NixPath -> IO ()
+runExe (NixPath fp) = executeFile (T.unpack fp) True [] Nothing
 
 parseCommand :: Opts.Parser Command
 parseCommand =
@@ -233,8 +298,9 @@ run p args = T.lines <$> S.run p args
 runStdin1 :: T.Text -> S.FilePath -> [T.Text] -> Sh T.Text
 runStdin1 stin p args = do
     S.setStdin stin
-    [out] <- run p args
-    pure out
+    run p args >>= \case
+      [out] -> pure out
+      xs -> throwIO $ userError $ "unexpected output: " <> show xs
 
 run_ :: S.FilePath -> [T.Text] -> Sh ()
 run_ p args = void $ run p args

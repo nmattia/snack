@@ -1,5 +1,6 @@
 { lib, glibcLocales, callPackage, writeText, runCommand, haskellPackages }:
 
+with (callPackage ./lib.nix {});
 with (callPackage ./modules.nix {});
 
 let
@@ -20,49 +21,44 @@ let
       in builtins.fromJSON json;
 in
 {
-  snackNixFromHPack = packageYaml:
+  # Returns an attribute set with two fields:
+  #  - library: a package spec
+  #  - executable: an attr set of executable name to package spec
+  pkgDescrsFromHPack = packageYaml:
     let
         package = fromYAML (builtins.readFile packageYaml);
         topDeps =
           # this drops the version bounds
           map (x: lib.lists.head (lib.strings.splitString " " x))
           package.dependencies;
-        extensions = package.default-extensions;
-        packageLib =
-          let component = package.library;
-          in
+        topExtensions = optAttr package "default-extensions" [];
+        packageLib = withAttr package "library" null (component:
             { src =
                 let base = builtins.dirOf packageYaml;
                 in builtins.toPath "${builtins.toString base}/${component.source-dirs}";
-              dependencies = topDeps ++
-                (if builtins.hasAttr "dependencies" component
-                then component.dependencies
-                else []);
-
-              inherit extensions;
-            };
+              dependencies = topDeps ++ (optAttr component "dependencies" []);
+              extensions = topExtensions ++ (optAttr component "extensions" []);
+            }
+          );
 
         exes =
-          if builtins.hasAttr "executables" package
-          then lib.mapAttrs (k: v: mkExe v) package.executables
-          else {};
+          withAttr package "executables" {} (lib.mapAttrs (k: v: mkExe v)) //
+          withAttr package "executable" {} (comp: { ${package.name} = mkExe comp; });
         mkExe = component:
           let
             depOrPack =
               lib.lists.partition
                 (x: x == package.name)
-                (if builtins.hasAttr "dependencies" component
-                then component.dependencies
-                else []);
-            packages = map (_: packageLib) depOrPack.right;
-            dependencies = topDeps ++ depOrPack.wrong;
+                (optAttr component "dependencies" []);
           in
             { main = fileToModule component.main;
               src =
                 let
                   base = builtins.dirOf packageYaml;
                 in builtins.toPath "${builtins.toString base}/${component.source-dirs}";
-              inherit packages dependencies extensions;
+              dependencies = topDeps ++ depOrPack.wrong;
+              extensions = topExtensions ++ (optAttr component "extensions" []);
+            packages = map (_: packageLib) depOrPack.right;
             };
     in
       { library = packageLib;

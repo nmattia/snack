@@ -43,4 +43,11 @@ foldDAGRec =
               };
           in foldDAGRec fld acc' children;
   in lib.foldl insert acc0 roots;
+
+withAttr = obj: attrName: def: f:
+  if builtins.hasAttr attrName obj then f (obj.${attrName}) else  def;
+
+optAttr = obj: attrName: def:
+  if builtins.hasAttr attrName obj then obj.${attrName} else def;
+
 }

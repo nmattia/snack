@@ -1,11 +1,11 @@
-{ runCommand, writeTextFile, symlinkJoin }:
 let
-  specJson = writeTextFile
+  pkgs = import ../nix {};
+  specJson = pkgs.writeTextFile
     { name = "spec-json";
       text = builtins.readFile ../nix/nixpkgs/nixpkgs-src.json;
       destination = "/spec.json";
     };
-  lib64 = runCommand "lib64" {}
+  lib64 = pkgs.runCommand "lib64" {}
     ''
       tar -czf lib.tar.gz -C ${../snack-lib} .
       mkdir -p $out
@@ -23,6 +23,7 @@ in
         "shelly"
         "text"
         "unix"
+        "unliftio"
       ];
     ghcOpts = [ "-Werror" "-Wall" ] ;
 
