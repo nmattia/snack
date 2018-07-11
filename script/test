@@ -94,6 +94,12 @@ pushd tests/hpack
 ./test
 popd
 
+banner "Test readme folder"
+pushd tests/readme
+echo | snack ghci --package-yaml ./package.yaml
+snack run --package-yaml ./package.yaml
+popd
+
 banner "Test this file's formatting"
 list=$(shfmt -i 2 -l script/test)
 if [[ -n "$list" ]]; then
