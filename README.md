@@ -4,6 +4,7 @@
 # Snack
 
 _snack_ is a build tool that uses the power of Nix to build Haskell projects.
+
 It will
 
   * use your existing [Hpack][hpack] file or a Nix-based config (described
@@ -14,8 +15,48 @@ It will
   * give you lots of cool Nix features for free: strong reproducibility
     guarantees, remote caching, remote builds, and more.
   * improve build performance in some cases, for instance:
-      - all Haskell modules modules are built in parallel.
+      - all Haskell modules are built in parallel.
       - there is a single linking step performed (typically) on a fast tmpfs.
+
+Excited? Check out the [install](#install) and [usage](#usage) sections. Make
+sure to also check out the [Caveat Emptor](#caveat-emptor) section.
+
+## Why should I use Snack?
+
+There are plenty of Haskell build tools around ([Cabal][cabal], [Stack][stack],
+[Bazel][haskell-rules], ...). Unfortunately none of these allow what I consider
+to be an ideal workflow:
+
+1. The same build tool is used by developers and on CI.
+2. The build tool guarantees that builds are reproducible.
+3. The builds are incremental, i.e. if a library contains 300 modules and I
+   modify the `main` function, only the `Main` module will be rebuilt.
+
+Using Cabal inside of Nix solves (2); however this means that the builds are
+not incremental anymore (3). This _may_ not be a problem on CI but definitely
+is when developing locally. The way to work around that is to use Cabal inside
+a nix-shell locally and call cabal2nix on CI. This means that developers use a
+different tool locally than on CI (1). Moreover, a lot of projects nowadays use
+Stack and, somewhat more importantly, Stackage LTSs. This makes local builds
+quite easy (in spite of the occasional rebuild when changing flags) but in
+order to perform a Nix build one has to generate some Nix boilerplate through
+tools like stackage2nix or stack2nix (which do not always work on CI).
+
+In comparison, _snack_ performs the exact same build on the developer's machine
+as on CI. The builds are incremental, maybe more so than Cabal builds: if you
+depend on a snack package _foo_ from package _bar_, and modify a module _Foo_
+from _foo_ which isn't used in _bar_, no recompilation will occur. Moreover,
+you benefit from your CI's cache. Finally, because _snack_ is just Nix (and
+works with the Nix sandbox) you have pretty good guarantees that your builds
+are reproducible.
+
+### Caveat Emptor
+
+The _snack_ library and executable are in their very early stages. They need a
+lot of testing and massaging. The main (advertised) features are there, but (1)
+may break for your particular project and (2) may break more in the future.
+
+Now that this is out of the way, install _snack_, break it, and help me improve it!
 
 ## Install
 
@@ -24,7 +65,6 @@ and run:
 
 ``` shell
 $ nix-env -f ./default.nix -iA snack-exe
-installing 'linker'
 ```
 
 The _snack_ executable is now in your `PATH`:
@@ -44,11 +84,13 @@ Available commands:
 
 ## Usage
 
-You can use Hpack -- for simple builds or if you already have a `package.yaml`
--- or Nix -- if you need more control over your build.
+You can use Hpack (for simple builds or if you already have a `package.yaml`)
+or Nix (if you need more control over your build).
 
 The next two sections show an example config for each option. They use the
-following example project (which you can also find [here](tests/readme/)):
+following example project which displays the title of the top-rated post on the
+[haskell subreddit](https://www.reddit.com/r/haskell/) (you can also find the
+code [here](tests/readme/)):
 
 ```shell
 .
@@ -96,7 +138,7 @@ main = topReddit >>= print
 
 ### Hpack
 
-The project can have this minmal `package.yaml`:
+The project can have this minimal `package.yaml`:
 
 ``` yaml
 name: snack-readme
@@ -118,21 +160,21 @@ default-extensions:
     - OverloadedStrings
 ```
 
-This command will build and run the project:
+This command will build the project and display the top-rated post's title:
 
 ``` shell
 $ snack run --package-yaml ./package.yaml
 ```
 
-You can also build without executing the resulting program:
+You can also build without executing:
 
 ``` shell
 $ snack build --package-yaml ./package.yaml
 ```
 
-You can also build and load up the result in `ghci`:
+Alternatively you can load up the project in `ghci`:
 
-```
+``` shell
 $ snack ghci --package-yaml ./package.yaml
 GHCi, version 8.2.2: http://www.haskell.org/ghc/  :? for help
 [1 of 2] Compiling Lib              ( /home/nicolas/projects/nmattia/snack/tests/readme/src/Lib.hs, interpreted )
@@ -161,10 +203,10 @@ in
   }
 ```
 
-To build and run the project is as simple as
+Building and running the project is as simple as
 
 ``` shell
-$ snack run
+$ snack run # looks for a file called snack.nix by default
 ```
 
 Alternatively, use `$ snack build` or `$ snack ghci` if you only want to build,
@@ -173,12 +215,27 @@ or fire up `ghci`, respectively.
 ### Advanced Nix Example
 
 
-You may want custom builds that involve things such as archiving and base64
-encoding entire directories.
+You may want custom builds that involve things such as [archiving and base64
+encoding entire
+directories](https://github.com/nmattia/snack/blob/c8e9e2d5ddaba2e0aa3e6c68a26bdc1063d387f3/bin/snack.nix#L10).
 
-_snack_ builds itself, so its configuration file is a very good example:
-[_snack_'s `snack.nix`](./bin/snack.nix).
+_snack_ builds itself, so its [`snack.nix`](./bin/snack.nix) is a good example
+of an advanced configuration. You can also check out the [test
+folder](./tests).
 
+## Thanks
+
+Big thanks to
+
+* [zimbatm](https://github.com/zimbatm) for brainstorming with me and improving
+  the Nix code.
+* [2mol](https://github.com/2mol) for showing me how to write understandable
+  READMEs.
+* quite a few people at ZuriHac for giving me ideas and feedback.
+* whomever is willing to help, in advance.
 
 [nix]: https://nixos.org/nix/
 [hpack]: https://github.com/sol/hpack
+[cabal]: https://www.haskell.org/cabal/
+[stack]: https://haskellstack.org
+[haskell-rules]: http://haskell.build/
