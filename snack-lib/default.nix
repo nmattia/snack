@@ -1,3 +1,4 @@
+# This is the entry point of the library, and badly needs documentation.
 # TODO: currently single out derivations prepend the PWD to the path
 # TODO: make sure that filters for "base" are airtight
 { lib
