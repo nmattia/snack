@@ -238,4 +238,4 @@ Big thanks to
 [hpack]: https://github.com/sol/hpack
 [cabal]: https://www.haskell.org/cabal/
 [stack]: https://haskellstack.org
-[haskell-rules]: http://haskell.build/
+[haskell-rules]: https://github.com/tweag/rules_haskell
