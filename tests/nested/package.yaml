@@ -2,5 +2,5 @@ name: snack-packages-test
 dependencies:
     - conduit
 executable:
-    main: Foo/Foo.hs
+    main: Bar/Foo.hs
     source-dirs: src

@@ -1,4 +1,4 @@
-{ main = "Foo.Foo";
+{ main = "Bar.Foo";
   src = ./src;
   dependencies = ["conduit"];
 }

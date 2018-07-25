@@ -117,9 +117,16 @@ rec {
         };
       phases =
         [ "unpackPhase" "buildPhase" ];
+
+      imports = map (mmm: mmm.moduleName) modSpec.moduleImports;
       buildPhase =
         ''
           echo "Building module ${modSpec.moduleName}"
+          echo "Local imports are:"
+          for foo in $imports; do
+            echo " - $foo"
+          done
+
           mkdir -p $out
           echo "Creating dependencies symtree for module ${modSpec.moduleName}"
           ${makeSymtree}
@@ -132,6 +139,8 @@ rec {
             -outputdir $out \
             ${ghcOptsArgs} \
             2>&1
+
+          ls $out
           echo "Done building module ${modSpec.moduleName}"
         '';
 

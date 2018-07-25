@@ -1,4 +1,4 @@
-module FooBar where
+module Bar.FooBar where
 
 import Conduit
 

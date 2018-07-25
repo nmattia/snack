@@ -1,5 +1,5 @@
 import Conduit
-import FooBar
+import Bar.FooBar
 
 main :: IO ()
 main = runConduit $ spitOut .| takeC 5 .| digest
