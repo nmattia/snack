@@ -12,7 +12,7 @@ rec {
       basePrefix = (builtins.toString base) + "/";
       pred = file: path: type:
         let
-          actual = (lib.strings.removePrefix basePrefix path);
+          actual = lib.strings.removePrefix basePrefix path;
           expected = file;
         in
           (expected == actual) ||
@@ -20,11 +20,19 @@ rec {
       # TODO: even though we're doing a lot of cleaning, there's sitll some
       # 'does-file-exist' happening
       src0 = lib.cleanSource base;
+      name = # Makes the file name derivation friendly
+        lib.stringAsChars
+        (x:
+          if x == "/" then "_"
+          else if builtins.isNull (builtins.match "[a-zA-Z0-9.+=-_?]" x)
+          then ""
+          else x
+        ) file;
 
     in stdenv.mkDerivation {
-      name = file;
+      inherit name;
       src = lib.cleanSourceWith  { filter = (pred file); src = src0; };
-      builder = writeScript (file + "-single-out")
+      builder = writeScript (name + "-single-out")
       # TODO: make sure the file actually exists and that there's only one
       ''
         echo "Singling out file ${file}"

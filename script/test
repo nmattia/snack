@@ -94,6 +94,11 @@ pushd tests/hpack
 ./test
 popd
 
+banner "nested modules"
+pushd tests/nested
+./test
+popd
+
 banner "Test readme folder"
 pushd tests/readme
 echo | snack ghci --package-yaml ./package.yaml
