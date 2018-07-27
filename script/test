@@ -99,6 +99,11 @@ pushd tests/nested
 ./test
 popd
 
+banner "transitive imports"
+pushd tests/trans-imp
+./test
+popd
+
 banner "Test readme folder"
 pushd tests/readme
 echo | snack ghci --package-yaml ./package.yaml
