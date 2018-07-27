@@ -74,7 +74,7 @@ rec {
       ghcOpts = modSpec.moduleGhcOpts ++ (map (x: "-X${x}") exts);
       ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
       objectName = modSpec.moduleName;
-      builtDeps = map (buildModule ghcWith) modSpec.moduleImports;
+      builtDeps = map (buildModule ghcWith) (allTransitiveImports [modSpec]);
       depsDirs = map (x: x + "/") builtDeps;
       base = modSpec.moduleBase;
       makeSymtree =
