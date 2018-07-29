@@ -109,6 +109,11 @@ pushd tests/readme
 ./test
 popd
 
+banner "Test that paths can be non-nix-friendly"
+pushd tests/any-paths
+./test
+popd
+
 banner "Test this file's formatting"
 list=$(shfmt -i 2 -l script/test)
 if [[ -n "$list" ]]; then
