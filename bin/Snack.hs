@@ -18,6 +18,7 @@ import Data.List (intercalate)
 import Data.Semigroup ((<>))
 import Data.String.Interpolate
 import Shelly (Sh)
+import System.Directory (makeAbsolute)
 import System.Posix.Process (executeFile)
 import UnliftIO.Exception
 import qualified Data.Aeson as Aeson
@@ -29,21 +30,19 @@ import qualified Options.Applicative as Opts
 import qualified Shelly as S
 
 data Mode
-  = Standalone SnackNix -- Reads a snack.nix file
-  | HPack PackageYaml
+  = Standalone FilePath -- Reads a snack.nix file
+  | HPack FilePath
 
 -- | Like a FilePath, but Nix friendly
 newtype SnackNix = SnackNix { unSnackNix :: FilePath }
 
 newtype PackageYaml = PackageYaml { unPackageYaml :: FilePath }
 
-mkSnackNix :: FilePath -> SnackNix
-mkSnackNix = SnackNix -- XXX: this is not nix friendly, but it's ok, because
-  -- it'll be gone soon
-  --
-mkPackageYaml :: FilePath -> PackageYaml
-mkPackageYaml = PackageYaml -- XXX: this is not nix friendly, but it's ok, because
-  -- it'll be gone soon
+mkSnackNix :: FilePath -> IO SnackNix
+mkSnackNix = fmap SnackNix . makeAbsolute
+
+mkPackageYaml :: FilePath -> IO PackageYaml
+mkPackageYaml = fmap PackageYaml . makeAbsolute
 
 data Command
   = Build
@@ -62,7 +61,7 @@ data Options = Options
 
 parseMode :: Opts.Parser Mode
 parseMode =
-    ((Standalone . mkSnackNix) <$>
+    (Standalone <$>
         Opts.strOption
         (Opts.long "snack-nix"
         <> Opts.short 's'
@@ -70,7 +69,7 @@ parseMode =
         <> Opts.metavar "PATH")
         )
     <|>
-    ((HPack . mkPackageYaml) <$>
+    (HPack <$>
         Opts.strOption
         (Opts.long "package-yaml"
         <> Opts.value "./package.yaml"
@@ -264,13 +263,17 @@ snackGhciHPack packageYaml = do
 
 runCommand :: Mode -> Command -> IO ()
 runCommand (Standalone snackNix) = \case
-  Build -> S.shelly $ void $ snackBuild snackNix
-  Run -> quiet (snackBuild snackNix) >>= runBuildResult
-  Ghci -> runExe =<< ghciExePath <$> (quiet $ snackGhci snackNix)
+  Build -> mkSnackNix snackNix >>= S.shelly . void . snackBuild
+  Run -> mkSnackNix snackNix >>= quiet . snackBuild >>= runBuildResult
+  Ghci ->
+    runExe =<< ghciExePath <$> (mkSnackNix snackNix >>= quiet . snackGhci)
 runCommand (HPack packageYaml) = \case
-  Build -> S.shelly $ void $ snackBuildHPack packageYaml
-  Run -> quiet (snackBuildHPack packageYaml) >>= runBuildResult
-  Ghci -> runExe =<< ghciExePath <$> (quiet $ snackGhciHPack packageYaml)
+  Build -> mkPackageYaml packageYaml >>= S.shelly . void . snackBuildHPack
+  Run ->
+    mkPackageYaml packageYaml >>= quiet . snackBuildHPack >>= runBuildResult
+  Ghci ->
+    runExe =<<
+      ghciExePath <$> (mkPackageYaml packageYaml >>= quiet . snackGhciHPack)
 
 runBuildResult :: BuildResult -> IO ()
 runBuildResult = \case
