@@ -3,4 +3,12 @@ os:
 - osx
 - linux
 language: nix
-script: ./script/test
+script:
+- nix-env -if https://github.com/cachix/cachix/tarball/master --extra-substituters https://cachix.cachix.org --trusted-public-keys 'cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+  cachix.cachix.org-1:eWNHQldwUO7G2VkjpnjDbWwy4KQ/HNxht7H4SSoMckM='
+- cachix use snack
+- cachix push snack --watch-store&
+- ./script/test
+env:
+  global:
+    secure: VHi/8/gN2+zHDw0RuAgOO5Vp675Me1nIDawADd+1uRJDaVh9O8Mz08QeX46Vj1fMTXTRjJzYbVDwJvkNh9LbfmtEP3e7NYy4e1HyK+UJzqTgin16M7Pxh0lRRaNb00TIHCzsEiTOn16gVqkd3o9BH4Rk2hBg9x6ocLlravT8LlRtiUGgX19zg79RmeIzOHIf1DDaB0NvPxjj30XpUJIjq/aMfnj+in4JMqS2feG9CajEQ4KBHSM2+ym3G8rZtb6x3WR89NhjuOh7osCYTnMEXs8PkNABpBrlpdH+UX6G/uTA8ccuexnZsFwWI3lDK3Z1OktE4/8W1LFurR0+8k6/PygXrgFOiKeiAjwXsF4F+vHj91wJ9yzor4S8DFHX+a0HFhMwmRmkhT3dXloklC1/jLvN69p3C/txBDUZl5ne6we7704XmVVNoo2OI2luEgA0oy4vtpsrZYpDHJ5axU/p1+SjpKyCSHacwNjfjATd9ZGmsOPisddfUwF7u2ZKVO0wH1hbIxvRNk8w0iywmWdIdDi1gDUhu2BMwZOsb6q3cVIrmeE1uOHpn74bLtU7xHp0uCD9K+183WjLFuDTJHTs/+yhIqBCvI+yV7uke7Jl6RLVn0Rd5Bv9buzenHNCtDM8xNNBjpU9WAS2MANxzVSrQEHKWrMTzoJmgR2xrLN57Pw=
