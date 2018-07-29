@@ -3,4 +3,15 @@ os:
 - osx
 - linux
 language: nix
-script: ./script/test
+before_script:
+- sudo mkdir -p /etc/nix
+- echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.conf
+- sudo launchctl kickstart -k system/org.nixos.nix-daemon || true
+script:
+- nix-env -iA cachix -f https://github.com/NixOS/nixpkgs/tarball/db557aab7b690f5e0e3348459f2e4dc8fd0d9298
+- cachix use snack
+- cachix push snack --watch-store &> /dev/null &
+- ./script/test
+env:
+  global:
+    secure: VHi/8/gN2+zHDw0RuAgOO5Vp675Me1nIDawADd+1uRJDaVh9O8Mz08QeX46Vj1fMTXTRjJzYbVDwJvkNh9LbfmtEP3e7NYy4e1HyK+UJzqTgin16M7Pxh0lRRaNb00TIHCzsEiTOn16gVqkd3o9BH4Rk2hBg9x6ocLlravT8LlRtiUGgX19zg79RmeIzOHIf1DDaB0NvPxjj30XpUJIjq/aMfnj+in4JMqS2feG9CajEQ4KBHSM2+ym3G8rZtb6x3WR89NhjuOh7osCYTnMEXs8PkNABpBrlpdH+UX6G/uTA8ccuexnZsFwWI3lDK3Z1OktE4/8W1LFurR0+8k6/PygXrgFOiKeiAjwXsF4F+vHj91wJ9yzor4S8DFHX+a0HFhMwmRmkhT3dXloklC1/jLvN69p3C/txBDUZl5ne6we7704XmVVNoo2OI2luEgA0oy4vtpsrZYpDHJ5axU/p1+SjpKyCSHacwNjfjATd9ZGmsOPisddfUwF7u2ZKVO0wH1hbIxvRNk8w0iywmWdIdDi1gDUhu2BMwZOsb6q3cVIrmeE1uOHpn74bLtU7xHp0uCD9K+183WjLFuDTJHTs/+yhIqBCvI+yV7uke7Jl6RLVn0Rd5Bv9buzenHNCtDM8xNNBjpU9WAS2MANxzVSrQEHKWrMTzoJmgR2xrLN57Pw=
