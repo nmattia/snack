@@ -106,8 +106,7 @@ popd
 
 banner "Test readme folder"
 pushd tests/readme
-echo | snack ghci --package-yaml ./package.yaml
-snack run --package-yaml ./package.yaml
+./test
 popd
 
 banner "Test this file's formatting"

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# vim: ft=sh sw=2 et
+
+set -euo pipefail
+
+test() {
+  echo | $SNACK ghci
+  $SNACK run
+}
+
+SNACK="snack" test
+SNACK="snack -s ./snack.nix" test
+SNACK="snack --package-yaml ./package.yaml" test
