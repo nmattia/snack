@@ -133,5 +133,5 @@ rec {
             extsByModuleName = extsByModuleName;
             ghcOptsByModuleName = ghcOptsByModuleName;
           };
-  
+
 }
