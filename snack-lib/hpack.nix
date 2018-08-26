@@ -27,16 +27,18 @@ in
   pkgDescrsFromHPack = packageYaml:
     let
         package = fromYAML (builtins.readFile packageYaml);
-        topDeps =
-          # this drops the version bounds
-          map (x: lib.lists.head (lib.strings.splitString " " x))
-          (optAttr package "dependencies" []);
+
+        # Snack drops the version bounds because here it has no meaning
+        dropVersionBounds =
+          map (x: lib.lists.head (lib.strings.splitString " " x));
+        mkDeps = obj: dropVersionBounds (optAttr obj "dependencies" []);
+        topDeps = mkDeps package;
         topExtensions = optAttr package "default-extensions" [];
         packageLib = withAttr package "library" null (component:
             { src =
                 let base = builtins.dirOf packageYaml;
                 in builtins.toPath "${builtins.toString base}/${component.source-dirs}";
-              dependencies = topDeps ++ (optAttr component "dependencies" []);
+              dependencies = topDeps ++ mkDeps component;
               extensions = topExtensions ++ (optAttr component "extensions" []);
             }
           );
@@ -56,7 +58,7 @@ in
                 let
                   base = builtins.dirOf packageYaml;
                 in builtins.toPath "${builtins.toString base}/${component.source-dirs}";
-              dependencies = topDeps ++ depOrPack.wrong;
+              dependencies = topDeps ++ dropVersionBounds depOrPack.wrong;
               extensions = topExtensions ++ (optAttr component "extensions" []);
             packages = map (_: packageLib) depOrPack.right;
             };
