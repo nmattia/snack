@@ -47,77 +47,32 @@ fail() {
 
 ## Main
 
+# Run the test name provided on the CLI _or_ all tests if none was provided
+SNACK_TESTS=""
+while [[ $# -gt 0 ]]; do
+  arg="$1"
+
+  SNACK_TESTS="$SNACK_TESTS $arg"
+  shift
+done
+
+if [ -z "$SNACK_TESTS" ]; then
+  SNACK_TESTS=$(ls tests | xargs -n 1 basename)
+fi
+
 cd "$(dirname "$0")/.."
 
-banner "Test packages"
-pushd tests/packages
-./test
-popd
+echo "Running the following tests:"
+for t in $SNACK_TESTS; do
+  echo " - $t"
+done
 
-banner "Test Template Haskell"
-pushd tests/template-haskell
-./test
-popd
-
-banner "Test Template Haskell 2"
-pushd tests/template-haskell-2
-./test
-popd
-
-banner "Test Template Haskell 3"
-pushd tests/template-haskell-3
-./test
-popd
-
-banner "Test Template Haskell 4"
-pushd tests/template-haskell-4
-./test
-popd
-
-banner "Test library"
-pushd tests/library
-./test
-popd
-
-banner "Test library-2"
-pushd tests/library-2
-./test
-popd
-
-banner "Test extensions"
-pushd tests/extensions
-./test
-popd
-
-banner "HPack"
-pushd tests/hpack
-./test
-popd
-
-banner "nested modules"
-pushd tests/nested
-./test
-popd
-
-banner "transitive imports"
-pushd tests/trans-imp
-./test
-popd
-
-banner "Test readme folder"
-pushd tests/readme
-./test
-popd
-
-banner "Test that paths can be non-nix-friendly"
-pushd tests/any-paths
-./test
-popd
-
-banner "Test that the MagicHash extension can be used"
-pushd tests/magichash
-./test
-popd
+for t in $SNACK_TESTS; do
+  banner "Test $name"
+  pushd "tests/$t"
+  ./test
+  popd
+done
 
 banner "Test that versions are stripped in package.yaml"
 pushd tests/strips-versions
