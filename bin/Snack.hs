@@ -31,12 +31,16 @@ import qualified Shelly as S
 
 data Mode
   = Standalone FilePath -- Reads a snack.nix file
-  | HPack FilePath
+  | HPack FilePath -- Reads a package.yaml
 
 -- | Like a FilePath, but Nix friendly
 newtype SnackNix = SnackNix { unSnackNix :: FilePath }
 
 newtype PackageYaml = PackageYaml { unPackageYaml :: FilePath }
+
+-- | How to call @nix-build@
+newtype NixConfig = NixConfig
+  { nixNCores :: Int }
 
 mkSnackNix :: FilePath -> IO SnackNix
 mkSnackNix = fmap SnackNix . makeAbsolute
@@ -52,12 +56,24 @@ data Command
 main :: IO ()
 main = do
     opts <- Opts.execParser (Opts.info (options <**> Opts.helper) mempty)
-    runCommand (mode opts) (command opts)
+    runCommand (nixConfig opts) (mode opts) (command opts)
 
 data Options = Options
-  { mode :: Mode
+  { nixConfig :: NixConfig
+  , mode :: Mode
   , command :: Command
   }
+
+parseNixConfig :: Opts.Parser NixConfig
+parseNixConfig =
+    (NixConfig <$>
+        Opts.option Opts.auto
+        (Opts.long "cores"
+        <> Opts.short 'j'
+        <> Opts.value 1
+        <> Opts.metavar "INT"
+        <> Opts.help "How many cores to use during the build")
+        )
 
 parseMode :: Opts.Parser Mode
 parseMode =
@@ -78,7 +94,7 @@ parseMode =
         )
 
 options :: Opts.Parser Options
-options = Options <$> parseMode <*> parseCommand
+options = Options <$> parseNixConfig <*> parseMode <*> parseCommand
 
 newtype ModuleName = ModuleName { unModuleName :: T.Text }
   deriving newtype (Ord, Eq, Aeson.FromJSONKey)
@@ -162,8 +178,8 @@ decodeOrFail bs = case Aeson.decodeStrict' bs of
     Nothing -> throwIO $ userError $ unlines
       [ "could not decode " <> show bs ]
 
-nixBuild :: [NixArg] -> NixExpr -> Sh NixPath
-nixBuild extraNixArgs nixExpr =
+nixBuild :: NixConfig -> [NixArg] -> NixExpr -> Sh NixPath
+nixBuild nixCfg extraNixArgs nixExpr =
     NixPath <$> runStdin1
       (T.pack [i|
         { #{ intercalate "," funArgs } }:
@@ -194,6 +210,8 @@ nixBuild extraNixArgs nixExpr =
     cliArgs =
       [ "-" -- read expression from stdin
       , "--no-out-link" -- no need for roots
+      -- how many cores to use (-j)
+      , "--cores", T.pack (show (nixNCores nixCfg))
       ] <> (concatMap toCliArgs nixArgs)
     funArgs :: [String]
     funArgs = toFunArg <$> nixArgs
@@ -209,9 +227,9 @@ nixBuild extraNixArgs nixExpr =
       { Arg -> "--arg"; ArgStr -> "--argstr" }
       : [ argName narg , argValue narg ]
 
-snackBuild :: SnackNix -> Sh BuildResult
-snackBuild snackNix = do
-    NixPath out <- nixBuild
+snackBuild :: NixConfig -> SnackNix -> Sh BuildResult
+snackBuild nixCfg snackNix = do
+    NixPath out <- nixBuild nixCfg
       [ NixArg
           { argName = "snackNix"
           , argValue = T.pack $ unSnackNix snackNix
@@ -221,9 +239,9 @@ snackBuild snackNix = do
       $ NixExpr "snack.inferSnackBuild snackNix"
     decodeOrFail =<< liftIO (BS.readFile $ T.unpack out)
 
-snackGhci :: SnackNix -> Sh GhciBuild
-snackGhci snackNix = do
-    NixPath out <- nixBuild
+snackGhci :: NixConfig -> SnackNix -> Sh GhciBuild
+snackGhci nixCfg snackNix = do
+    NixPath out <- nixBuild nixCfg
       [ NixArg
           { argName = "snackNix"
           , argValue = T.pack $ unSnackNix snackNix
@@ -235,9 +253,9 @@ snackGhci snackNix = do
       BuiltGhci g -> pure g
       b -> throwIO $ userError $ "Expected GHCi build, got " <> show b
 
-snackBuildHPack :: PackageYaml -> Sh BuildResult
-snackBuildHPack packageYaml = do
-    NixPath out <- nixBuild
+snackBuildHPack :: NixConfig -> PackageYaml -> Sh BuildResult
+snackBuildHPack nixCfg packageYaml = do
+    NixPath out <- nixBuild nixCfg
       [ NixArg
           { argName = "packageYaml"
           , argValue = T.pack $ unPackageYaml packageYaml
@@ -247,9 +265,9 @@ snackBuildHPack packageYaml = do
       $ NixExpr "snack.inferHPackBuild packageYaml"
     decodeOrFail =<< liftIO (BS.readFile (T.unpack out))
 
-snackGhciHPack :: PackageYaml -> Sh GhciBuild
-snackGhciHPack packageYaml = do
-    NixPath out <- nixBuild
+snackGhciHPack :: NixConfig -> PackageYaml -> Sh GhciBuild
+snackGhciHPack nixCfg packageYaml = do
+    NixPath out <- nixBuild nixCfg
       [ NixArg
           { argName = "packageYaml"
           , argValue = T.pack $ unPackageYaml packageYaml
@@ -261,19 +279,23 @@ snackGhciHPack packageYaml = do
       BuiltGhci g -> pure g
       b -> throwIO $ userError $ "Expected GHCi build, got " <> show b
 
-runCommand :: Mode -> Command -> IO ()
-runCommand (Standalone snackNix) = \case
-  Build -> mkSnackNix snackNix >>= S.shelly . void . snackBuild
-  Run -> mkSnackNix snackNix >>= quiet . snackBuild >>= runBuildResult
+runCommand :: NixConfig -> Mode -> Command -> IO ()
+runCommand nixCfg (Standalone snackNix) = \case
+  Build -> mkSnackNix snackNix >>= S.shelly . void . snackBuild nixCfg
+  Run -> mkSnackNix snackNix >>= quiet . snackBuild nixCfg >>= runBuildResult
   Ghci ->
-    runExe =<< ghciExePath <$> (mkSnackNix snackNix >>= quiet . snackGhci)
-runCommand (HPack packageYaml) = \case
-  Build -> mkPackageYaml packageYaml >>= S.shelly . void . snackBuildHPack
+    runExe =<< ghciExePath <$>
+      (mkSnackNix snackNix >>= quiet . snackGhci nixCfg)
+runCommand nixCfg (HPack packageYaml) = \case
+  Build ->
+    mkPackageYaml packageYaml >>= S.shelly . void . snackBuildHPack nixCfg
   Run ->
-    mkPackageYaml packageYaml >>= quiet . snackBuildHPack >>= runBuildResult
+    mkPackageYaml packageYaml
+      >>= quiet . snackBuildHPack nixCfg
+      >>= runBuildResult
   Ghci ->
-    runExe =<<
-      ghciExePath <$> (mkPackageYaml packageYaml >>= quiet . snackGhciHPack)
+    runExe =<< ghciExePath <$>
+      (mkPackageYaml packageYaml >>= quiet . snackGhciHPack nixCfg)
 
 runBuildResult :: BuildResult -> IO ()
 runBuildResult = \case
