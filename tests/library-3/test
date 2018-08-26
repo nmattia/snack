@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# vim: ft=sh sw=2 et
+
+set -euo pipefail
+
+test() {
+  TMP_FILE=$(mktemp)
+
+  cat $($SNACK build) | jq -M '.result | keys' > $TMP_FILE
+
+  diff golden.jq $TMP_FILE
+
+  capture_io "$TMP_FILE" main | $SNACK ghci
+  diff golden $TMP_FILE
+  rm $TMP_FILE
+}
+
+SNACK="snack" test
+SNACK="snack -s ./snack.nix" test
+# Note: no HPack test, because HPack doesn't support multi library

@@ -74,11 +74,6 @@ for t in $SNACK_TESTS; do
   popd
 done
 
-banner "Test that versions are stripped in package.yaml"
-pushd tests/strips-versions
-./test
-popd
-
 banner "Test this file's formatting"
 list=$(shfmt -i 2 -l script/test)
 if [[ -n "$list" ]]; then
