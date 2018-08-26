@@ -2,6 +2,7 @@
 { lib
 , callPackage
 , runCommand
+, glibcLocales
 , haskellPackages
 }:
 
@@ -58,7 +59,10 @@ rec {
         } "ghc -package ghc ${./Imports.hs} -o $out" ;
     # XXX: this command needs ghc in the environment so that it can call "ghc
     # --print-libdir"...
-    in runCommand "dependencies-json" { buildInputs = [ ghc ]; }
+    in runCommand "dependencies-json"
+      {   buildInputs = [ ghc glibcLocales ];
+          LANG="en_US.utf-8";
+      }
 
         ''
           ${importParser} ${singleOutModulePath base modName} > $out
