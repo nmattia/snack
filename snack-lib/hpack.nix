@@ -1,6 +1,7 @@
-{ lib, glibcLocales, callPackage, writeText, runCommand, haskellPackages }:
+{ lib, dhall-json, glibcLocales, callPackage, writeText, runCommand, haskellPackages }:
 
 with (callPackage ./lib.nix {});
+with (callPackage ./files.nix {});
 with (callPackage ./modules.nix {});
 
 let
@@ -19,6 +20,16 @@ let
         "${y2j} ${writeText "y2j" text}  > $out"
         );
       in builtins.fromJSON json;
+
+    fromDhall = text:
+      let json =
+
+        builtins.readFile (runCommand "d2j"
+          { buildInputs = [ dhall-json ]; }
+        # hack: dhall-to-json gets a path and then imports the contents
+        "dhall-to-json <<< ${writeText "d2j" text}  > $out"
+        );
+      in builtins.fromJSON json;
 in
 {
   # Returns an attribute set with two fields:
@@ -26,7 +37,21 @@ in
   #  - executable: an attr set of executable name to package spec
   pkgDescrsFromHPack = packageYaml:
     let
-        package = fromYAML (builtins.readFile packageYaml);
+        package =
+          let
+            ext = fileExtension packageYaml;
+            fromFile =
+            if ext == null
+              then abort "File ${packageYaml} has no extension!"
+              else if ext == "yaml"
+              then fromYAML
+              else if ext == "yml"
+              then fromYAML
+              else if ext == "dhall"
+              then fromDhall
+              else
+                abort "File ${packageYaml} has an unknown extension (${ext})!";
+          in fromFile (builtins.readFile packageYaml);
 
         # Snack drops the version bounds because here it has no meaning
         dropVersionBounds =

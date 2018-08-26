@@ -11,3 +11,4 @@ test() {
 SNACK="snack" test
 SNACK="snack -s ./snack.nix" test
 SNACK="snack --package-yaml ./package.yaml" test
+SNACK="snack --package-yaml ./package.dhall" test
