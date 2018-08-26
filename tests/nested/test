@@ -16,6 +16,6 @@ test() {
   rm $TMP_FILE
 }
 
-SNACK="snack" test
-SNACK="snack -s ./snack.nix" test
-SNACK="snack --package-yaml ./package.yaml" test
+SNACK="snack -j4" test
+SNACK="snack -j4 -s ./snack.nix" test
+SNACK="snack -j4 --package-yaml ./package.yaml" test
