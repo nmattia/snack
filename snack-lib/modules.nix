@@ -35,7 +35,15 @@ rec {
      (builtins.readFile (listAllModuleImportsJSON (baseByModuleName modName) modName))
     ;
 
-  listModulesInDir = dir: map fileToModule (listFilesInDir dir);
+  # Whether the file is a Haskell module or not. It uses very simple
+  # heuristics: If the file starts with a capital letter, then yes.
+  isHaskellModuleFile = f:
+    ! (builtins.isNull (builtins.match "[A-Z].*" f));
+
+  listModulesInDir = dir:
+    map fileToModule
+      (lib.filter isHaskellModuleFile
+      (listFilesInDir dir));
 
   doesModuleExist = baseByModuleName: modName:
     doesFileExist (baseByModuleName modName) (moduleToFile modName);
