@@ -1,0 +1,4 @@
+name: snack-magichash-test
+executable:
+    main: Main.hs
+    source-dirs: .

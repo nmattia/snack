@@ -30,7 +30,7 @@ in
         topDeps =
           # this drops the version bounds
           map (x: lib.lists.head (lib.strings.splitString " " x))
-          package.dependencies;
+          (optAttr package "dependencies" []);
         topExtensions = optAttr package "default-extensions" [];
         packageLib = withAttr package "library" null (component:
             { src =
