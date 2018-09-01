@@ -73,33 +73,28 @@ rec {
     [ modSpec ] ++
       ( lib.lists.concatMap flattenModuleSpec modSpec.moduleImports );
 
-  allTransitiveDeps = allTransitiveLists "moduleDependencies" lib.id;
-  allTransitiveGhcOpts = allTransitiveLists "moduleGhcOpts" lib.id;
-  allTransitiveExtensions = allTransitiveLists "moduleExtensions" lib.id;
-  allTransitiveDirectories =
-    allTransitiveLists
-      "moduleDirectories"
-      builtins.toString; # XXX: is toString correct?
-  allTransitiveImports =
-    allTransitiveLists
-      "moduleImports"
-      (modSpec: modSpec.moduleName);
+  allTransitiveDeps = allTransitiveLists "moduleDependencies";
+  allTransitiveGhcOpts = allTransitiveLists "moduleGhcOpts";
+  allTransitiveExtensions = allTransitiveLists "moduleExtensions";
+  allTransitiveDirectories = allTransitiveLists "moduleDirectories";
+  allTransitiveImports = allTransitiveLists "moduleImports";
 
-  allTransitiveLists = attr: toLabel: modSpecs:
-    lib.attrsets.attrValues
-    ( foldDAG
-        { f = modSpec:
-            lib.lists.foldl
-              (x: y: x // { ${toLabel y} = y;})
-              {} modSpec.${attr};
-          empty = {};
-          elemLabel = modSpec: modSpec.moduleName;
-          reduce = a: b: a // b;
-          elemChildren = modSpec: modSpec.moduleImports;
-        }
-        modSpecs
-    );
-
+  allTransitiveLists = attr: modSpecs:
+    foldDAG
+      { f = modSpec:
+          lib.lists.foldl
+            # calling "unique" is not super efficient but a set-based
+            # approach breaks because not all values can be used as attribute
+            # names (in particular strings referring to a store path)
+            (x: y: lib.lists.unique (x ++ [y]))
+            [] modSpec.${attr};
+        empty = [];
+        elemLabel = modSpec: modSpec.moduleName;
+        reduce = a: b: a ++ b;
+        elemChildren = modSpec: modSpec.moduleImports;
+      }
+      modSpecs
+      ;
 
   # Takes a package spec and returns (modSpecs -> Fold)
   modSpecFoldFromPackageSpec = pkgSpec:
