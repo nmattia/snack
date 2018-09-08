@@ -48,7 +48,7 @@ main = do
 
         runParser fp str (Parser.parseModule) >>= \case
           Lexer.POk _ (SrcLoc.L _ res) -> pure res
-          Lexer.PFailed _ e -> fail $ unlines
+          Lexer.PFailed _ _ e -> fail $ unlines
             [ "Could not parse module: "
             , fp
             , " because " <> Outputable.showSDocUnsafe e
