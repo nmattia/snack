@@ -80,13 +80,12 @@ rec {
   allTransitiveImports = allTransitiveLists "moduleImports";
 
   allTransitiveLists = attr: modSpecs:
+    lib.lists.unique
+    (
     foldDAG
       { f = modSpec:
           lib.lists.foldl
-            # calling "unique" is not super efficient but a set-based
-            # approach breaks because not all values can be used as attribute
-            # names (in particular strings referring to a store path)
-            (x: y: lib.lists.unique (x ++ [y]))
+            (x: y: x ++ [y])
             [] modSpec.${attr};
         empty = [];
         elemLabel = modSpec: modSpec.moduleName;
@@ -94,6 +93,7 @@ rec {
         elemChildren = modSpec: modSpec.moduleImports;
       }
       modSpecs
+    )
       ;
 
   # Takes a package spec and returns (modSpecs -> Fold)
