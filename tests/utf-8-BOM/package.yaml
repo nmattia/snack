@@ -1,0 +1,4 @@
+name: snack-strips-versions
+executable:
+    main: Main.hs
+    source-dirs: .
