@@ -1,17 +1,10 @@
 # This is the entry point of the library, and badly needs documentation.
 # TODO: currently single out derivations prepend the PWD to the path
 # TODO: make sure that filters for "base" are airtight
-{ lib
-, haskellPackages
-, makeWrapper
-, rsync
-, stdenv
-, symlinkJoin
-, writeScriptBin
-, writeText
-, runCommand
-, callPackage
+{ pkgs
 }:
+
+with pkgs;
 
 with (callPackage ./build.nix {});
 with (callPackage ./files.nix {});
@@ -72,21 +65,7 @@ let
         exe_path = "${drv.out}/${drv.relExePath}";
       };
 
-  inferSnackBuild = snackNix: writeText "snack-build-json"
-    ( builtins.toJSON (
-    let
-      pkgSpec = mkPackageSpec (import snackNix);
-    in
-      if builtins.isNull pkgSpec.packageMain
-      then
-        { "build_type" = "library";
-          "result" = buildAsLibrary pkgSpec;
-        }
-      else
-        { "build_type" = "executable";
-          "result" = buildAsExecutable pkgSpec;
-        }
-    ));
+  inferSnackBuild = snackNix: mkPackage (import snackNix);
 
   inferSnackGhci = snackNix: writeText "snack-ghci-json"
     ( builtins.toJSON (
@@ -151,6 +130,23 @@ let
         executables =
           lib.attrsets.mapAttrs (k: v: mkPackageSpec v) descrs.executables;
       };
+
+  mkPackage = snackNixExpr: writeText "snack-build-json"
+    ( builtins.toJSON (
+    let
+      pkgSpec = mkPackageSpec snackNixExpr;
+    in
+      if builtins.isNull pkgSpec.packageMain
+      then
+        { "build_type" = "library";
+          "result" = buildAsLibrary pkgSpec;
+        }
+      else
+        { "build_type" = "executable";
+          "result" = buildAsExecutable pkgSpec;
+        }
+    ));
+
 in
   {
     inherit
@@ -163,5 +159,6 @@ in
     buildAsLibrary
     snackSpec
     hpackSpec
+    mkPackage
     ;
   }
