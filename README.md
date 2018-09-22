@@ -71,9 +71,14 @@ The _snack_ executable is now in your `PATH`:
 
 ``` shell
 $ snack --help
-Usage: snack ([-s|--snack-nix PATH] | [-p|--package-yaml PATH]) COMMAND
+Usage: snack [-l|--lib DIR] [-j|--cores INT] ([-s|--snack-nix PATH] |
+             [-p|--package-yaml PATH]) COMMAND
 
 Available options:
+  -l,--lib DIR             Path to the directory to use as the Nix library
+                           instead of the default one bundled with the snack
+                           executable.
+  -j,--cores INT           How many cores to use during the build
   -h,--help                Show this help text
 
 Available commands:
