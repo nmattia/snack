@@ -5,6 +5,8 @@
 
 _snack_ is a build tool that uses the power of Nix to build Haskell projects.
 
+***Snack requires Nix >= 2.0***
+
 It will
 
   * use your existing [Hpack][hpack] file or a Nix-based config (described
@@ -59,6 +61,8 @@ may break for your particular project and (2) may break more in the future.
 Now that this is out of the way, install _snack_, break it, and help me improve it!
 
 ## Install
+
+_See the [Hacking](#hacking) section if you want to hack on snack_
 
 Assuming that [Nix][nix] is installed on your machine, clone this repo
 and run:
@@ -227,6 +231,50 @@ directories](https://github.com/nmattia/snack/blob/c8e9e2d5ddaba2e0aa3e6c68a26bd
 _snack_ builds itself, so its [`snack.nix`](./bin/snack.nix) is a good example
 of an advanced configuration. You can also check out the [test
 folder](./tests).
+
+## Hacking
+
+There are two different components you can hack:
+
+* The snack executable in [`bin/Snack.hs`](./bin/Snack.hs)
+* The snack library in [`snack-lib/`](./snack-lib)
+
+Make sure you have a working version of snack installed, e.g.
+
+``` shell
+$ git co master
+$ nix-env -f ./default.nix -iA snack-exe
+```
+
+If you are hacking on the _snack_ executable, just start _snack_ in a GHCi
+session:
+
+``` shell
+$ snack ghci -s ./bin/snack.nix
+Temporarily symlinking /nix/store/j1x5vkxjr2ibabddfkdih4sm4kwinfda-spec-json/spec.json to spec.json...
+done.
+Temporarily symlinking /nix/store/w42y6dzgfmli9r8kmgh8akqk6kyda31x-lib64/lib.tar.gz.b64 to lib.tar.gz.b64...
+done.
+GHCi, version 8.2.2: http://www.haskell.org/ghc/  :? for help
+[1 of 1] Compiling Main             ( /home/nicolas/projects/nmattia/snack/bin/Snack.hs, interpreted )
+Ok, one module loaded.
+*Main>
+```
+
+If you are hacking on the library, specify `-l/--lib` when running snack (this
+works in GHCi too):
+
+``` shell
+*Main> :main ghci -l ./snack-lib/ -s ./tests/readme/snack.nix
+GHCi, version 8.2.2: http://www.haskell.org/ghc/  :? for help
+[1 of 2] Compiling Lib              ( /home/nicolas/projects/nmattia/snack/tests/readme/src/Lib.hs, interpreted )
+[2 of 2] Compiling Main             ( /home/nicolas/projects/nmattia/snack/tests/readme/app/Main.hs, interpreted )
+Ok, two modules loaded.
+*Main> :main
+"\"Category Theory for Programmers\" has been finished!"
+```
+
+> Mustn't be afraid to dream a little bigger, darling.
 
 ## Thanks
 
