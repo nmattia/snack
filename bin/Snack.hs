@@ -21,7 +21,7 @@ import Data.List (intercalate)
 import Data.Semigroup ((<>))
 import Data.String.Interpolate
 import Shelly (Sh)
-import System.Directory (makeAbsolute)
+import System.Directory (canonicalizePath)
 import System.Posix.Process (executeFile)
 import UnliftIO.Exception
 import qualified Data.Aeson as Aeson
@@ -63,19 +63,19 @@ prepareMode = \case
 newtype SnackNix = SnackNix { unSnackNix :: FilePath }
 
 mkSnackNix :: FilePath -> IO SnackNix
-mkSnackNix = fmap SnackNix . makeAbsolute
+mkSnackNix = fmap SnackNix . canonicalizePath
 
 -- | Like a FilePath, but Nix friendly
 newtype SnackLib = SnackLib { unSnackLib :: FilePath }
 
 mkSnackLib :: FilePath -> IO SnackLib
-mkSnackLib = fmap SnackLib . makeAbsolute
+mkSnackLib = fmap SnackLib . canonicalizePath
 
 -- | Like a FilePath, but Nix friendly
 newtype PackageYaml = PackageYaml { unPackageYaml :: FilePath }
 
 mkPackageYaml :: FilePath -> IO PackageYaml
-mkPackageYaml = fmap PackageYaml . makeAbsolute
+mkPackageYaml = fmap PackageYaml . canonicalizePath
 
 -- | How to call @nix-build@
 newtype NixConfig = NixConfig
