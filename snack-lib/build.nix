@@ -69,7 +69,8 @@ rec {
 
   buildModule = ghcWith: modSpec:
     let
-      ghc = ghcWith modSpec.moduleDependencies;
+      ghc = ghcWith deps;
+      deps = allTransitiveDeps [modSpec];
       exts = modSpec.moduleExtensions;
       ghcOpts = modSpec.moduleGhcOpts ++ (map (x: "-X${x}") exts);
       ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
