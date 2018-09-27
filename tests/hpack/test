@@ -5,7 +5,7 @@ set -euo pipefail
 
 TMP_DIR=$(mktemp -d)
 
-git clone http://github.com/2mol/pboy.git $TMP_DIR
+git clone http://github.com/nmattia/pboy.git $TMP_DIR
 git -C $TMP_DIR reset --hard a2458d6984930a33a3b1972cb6d5c167d2511b06
 
 snack -j4 build --package-yaml $TMP_DIR/package.yaml

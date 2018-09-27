@@ -75,7 +75,7 @@ The _snack_ executable is now in your `PATH`:
 
 ``` shell
 $ snack --help
-Usage: snack [-l|--lib DIR] [-j|--cores INT] ([-s|--snack-nix PATH] |
+Usage: snack [-l|--lib DIR] [-j|--cores INT] ([-s|--package-nix PATH] |
              [-p|--package-yaml PATH]) COMMAND
 
 Available options:
@@ -215,7 +215,7 @@ in
 Building and running the project is as simple as
 
 ``` shell
-$ snack run # looks for a file called snack.nix by default
+$ snack run # looks for a file called package.nix by default
 ```
 
 Alternatively, use `$ snack build` or `$ snack ghci` if you only want to build,
@@ -228,7 +228,7 @@ You may want custom builds that involve things such as [archiving and base64
 encoding entire
 directories](https://github.com/nmattia/snack/blob/c8e9e2d5ddaba2e0aa3e6c68a26bdc1063d387f3/bin/snack.nix#L10).
 
-_snack_ builds itself, so its [`snack.nix`](./bin/snack.nix) is a good example
+_snack_ builds itself, so its [`package.nix`](./bin/package.nix) is a good example
 of an advanced configuration. You can also check out the [test
 folder](./tests).
 
@@ -250,7 +250,7 @@ If you are hacking on the _snack_ executable, just start _snack_ in a GHCi
 session:
 
 ``` shell
-$ snack ghci -s ./bin/snack.nix
+$ snack ghci -s ./bin/package.nix
 Temporarily symlinking /nix/store/j1x5vkxjr2ibabddfkdih4sm4kwinfda-spec-json/spec.json to spec.json...
 done.
 Temporarily symlinking /nix/store/w42y6dzgfmli9r8kmgh8akqk6kyda31x-lib64/lib.tar.gz.b64 to lib.tar.gz.b64...
@@ -265,7 +265,7 @@ If you are hacking on the library, specify `-l/--lib` when running snack (this
 works in GHCi too):
 
 ``` shell
-*Main> :main ghci -l ./snack-lib/ -s ./tests/readme/snack.nix
+*Main> :main ghci -l ./snack-lib/ -s ./tests/readme/package.nix
 GHCi, version 8.2.2: http://www.haskell.org/ghc/  :? for help
 [1 of 2] Compiling Lib              ( /home/nicolas/projects/nmattia/snack/tests/readme/src/Lib.hs, interpreted )
 [2 of 2] Compiling Main             ( /home/nicolas/projects/nmattia/snack/tests/readme/app/Main.hs, interpreted )

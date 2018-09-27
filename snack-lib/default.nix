@@ -65,12 +65,12 @@ let
         exe_path = "${drv.out}/${drv.relExePath}";
       };
 
-  inferSnackBuild = snackNix: mkPackage (import snackNix);
+  inferSnackBuild = packageNix: mkPackage (import packageNix);
 
-  inferSnackGhci = snackNix: writeText "snack-ghci-json"
+  inferSnackGhci = packageNix: writeText "snack-ghci-json"
     ( builtins.toJSON (
     let
-      pkgSpec = mkPackageSpec (import snackNix);
+      pkgSpec = mkPackageSpec (import packageNix);
       drv =
         if builtins.isNull pkgSpec.packageMain
         then ghciWithModules ghcWith (libraryModSpecs pkgSpec)
@@ -102,7 +102,7 @@ let
     ( builtins.toJSON (
     let
       pkgSpecs = hpackSpecs packageYaml;
-      pkgSpec = mkPackageSpec (import snackNix);
+      pkgSpec = mkPackageSpec (import packageNix);
       drv =
         let exeSpecs = builtins.attrValues pkgSpecs.executables;
         in
@@ -120,7 +120,7 @@ let
       }
     ));
 
-  snackSpec = snackNix: mkPackageSpec (import snackNix);
+  snackSpec = packageNix: mkPackageSpec (import packageNix);
   hpackSpecs = packageYaml:
     let
       descrs = pkgDescrsFromHPack packageYaml;
