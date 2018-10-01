@@ -1,0 +1,13 @@
+name:                something-that-doesnt-exist
+version:             1.0.0.1
+description:         Foo Bar
+license:             MIT
+author:              Nicolas Mattia
+maintainer:          nicolas@nmattia.com
+build-type:          Simple
+cabal-version:       >=1.2
+
+library
+  build-depends:     base >= 3 && < 5
+  exposed-modules:   Something
+  ghc-options:       -Wall
