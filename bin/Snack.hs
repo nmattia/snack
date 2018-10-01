@@ -268,12 +268,13 @@ nixBuild snackCfg extraNixArgs nixExpr =
         { #{ intercalate "," funArgs } }:
         let
           spec = builtins.fromJSON specJson;
-          pkgs = import (builtins.fetchTarball
+          pkgsSrc = (builtins.fetchTarball
             { url = "https://github.com/${spec.owner}/${spec.repo}/archive/${spec.rev}.tar.gz";
               sha256 = spec.sha256;
-            }) {} ;
+            });
+          pkgs = import pkgsSrc {};
           libDir = #{ libDir };
-          snack = pkgs.callPackage libDir {};
+          snack = (import libDir) { inherit pkgs; };
         in #{ T.unpack $ unNixExpr $ nixExpr }
       |])
       "nix-build"
