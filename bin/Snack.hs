@@ -66,13 +66,13 @@ mkPackageNix :: FilePath -> IO PackageNix
 mkPackageNix = fmap PackageNix . canonicalizePath
 
 -- | Like a FilePath, but Nix friendly
-newtype SnackNix = SnackNix { _unSnackNix :: FilePath }
+newtype SnackNix = SnackNix FilePath
 
 mkSnackNix :: FilePath -> IO SnackNix
 mkSnackNix = fmap SnackNix . canonicalizePath
 
 -- | Like a FilePath, but Nix friendly
-newtype SnackLib = SnackLib { _unSnackLib :: FilePath }
+newtype SnackLib = SnackLib FilePath
 
 mkSnackLib :: FilePath -> IO SnackLib
 mkSnackLib = fmap SnackLib . canonicalizePath
@@ -114,7 +114,6 @@ type Options = Options_ 'ConfigReady
 
 data Options_ c = Options
   { snackConfig :: SnackConfig_ c
-  -- , snackNix :: Maybe (Config c FilePath SnackNix)
   , mode :: Mode_ c
   , command :: Command
   }
@@ -133,7 +132,7 @@ prepareSnackConfig raw =
         Nothing -> pure Nothing
         Just fp -> Just <$> mkSnackLib fp
       ) <*>
-      (forM (snackNix raw) mkSnackNix) <*>
+      forM (snackNix raw) mkSnackNix <*>
       pure (snackNixCfg raw)
 
 parseNixConfig :: Opts.Parser NixConfig
@@ -191,16 +190,10 @@ parseOptions :: Opts.Parser OptionsRaw
 parseOptions =
     Options <$>
       parseSnackConfig <*>
-      -- Opts.optional (
-          -- Opts.strOption
-          -- (Opts.long "snack-nix"
-          -- <> Opts.short 'b'
-          -- <> Opts.metavar "PATH")
-          -- ) <*>
       parseMode <*>
       parseCommand
 
-newtype ModuleName = ModuleName { _unModuleName :: T.Text }
+newtype ModuleName = ModuleName T.Text
   deriving newtype (Ord, Eq, Aeson.FromJSONKey)
   deriving stock Show
 
@@ -235,13 +228,11 @@ instance FromJSON GhciBuild where
 
 -- The kinds of builds: library, executable, or a mix of both (currently only
 -- for HPack)
-newtype LibraryBuild = LibraryBuild
-  { _unLibraryBuild :: Map.Map ModuleName NixPath }
+newtype LibraryBuild = LibraryBuild (Map.Map ModuleName NixPath)
   deriving newtype FromJSON
   deriving stock Show
 
-newtype ExecutableBuild = ExecutableBuild
-  { _exePath :: NixPath }
+newtype ExecutableBuild = ExecutableBuild NixPath
   deriving stock Show
 
 instance FromJSON ExecutableBuild where
@@ -272,7 +263,7 @@ data NixArgType
 
 newtype NixExpr = NixExpr { unNixExpr :: T.Text }
 
-newtype NixPath = NixPath { _unNixPath :: T.Text }
+newtype NixPath = NixPath T.Text
   deriving newtype FromJSON
   deriving stock Show
 
