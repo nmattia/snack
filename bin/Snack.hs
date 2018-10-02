@@ -280,9 +280,10 @@ nixBuild snackCfg extraNixArgs nixExpr =
         { #{ intercalate "," funArgs } }:
         let
           spec = builtins.fromJSON specJson;
-          pkgs = import #{ pkgsSrc } {};
+          config = #{ pkgsSrc };
+          pkgs = config.pkgs;
           libDir = #{ libDir };
-          snack = (import libDir) { inherit pkgs; };
+          snack = (import libDir) config;
         in #{ T.unpack $ unNixExpr $ nixExpr }
       |])
       "nix-build"
@@ -291,13 +292,17 @@ nixBuild snackCfg extraNixArgs nixExpr =
     pkgsSrc :: String
     pkgsSrc =  case snackNix snackCfg of
       Just (SnackNix fp) ->
-        [i|(import #{ fp }).pkgs|]
+        [i|(import #{ fp })|]
       Nothing ->
         [i|
-        (builtins.fetchTarball
-            { url = "https://github.com/${spec.owner}/${spec.repo}/archive/${spec.rev}.tar.gz";
-              sha256 = spec.sha256;
-            })
+        { pkgs = import
+            (
+            builtins.fetchTarball
+               { url = "https://github.com/${spec.owner}/${spec.repo}/archive/${spec.rev}.tar.gz";
+                 sha256 = spec.sha256;
+               }
+            ) {} ;
+        }
         |]
     libDir :: String
     libDir = case snackLib snackCfg of

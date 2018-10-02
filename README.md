@@ -68,6 +68,12 @@ Assuming that [Nix][nix] is installed on your machine, clone this repo
 and run:
 
 ``` shell
+$ ./script/install
+```
+
+which is equivalent to
+
+``` shell
 $ nix-env -f ./default.nix -iA snack-exe
 ```
 
@@ -75,8 +81,8 @@ The _snack_ executable is now in your `PATH`:
 
 ``` shell
 $ snack --help
-Usage: snack [-l|--lib DIR] [-j|--cores INT] ([-s|--package-nix PATH] |
-             [-p|--package-yaml PATH]) COMMAND
+Usage: snack [-l|--lib DIR] [-b|--snack-nix PATH] [-j|--cores INT]
+             ([-s|--package-nix PATH] | [-p|--package-yaml PATH]) COMMAND
 
 Available options:
   -l,--lib DIR             Path to the directory to use as the Nix library
@@ -221,8 +227,50 @@ $ snack run # looks for a file called package.nix by default
 Alternatively, use `$ snack build` or `$ snack ghci` if you only want to build,
 or fire up `ghci`, respectively.
 
-### Advanced Nix Example
+### Using other versions of GHC and nixpkgs
 
+The _snack_ executable comes with a [bundled version of
+nixpkgs](./nix/nixpkgs/nixpkgs-src.json) and uses the GHC executable provided
+by `haskell.packages.ghc822.ghcWithPackages`. You may override those default by
+providing a `snack.nix`:
+
+``` shell
+$ snack --snack-nix ./snack.nix build
+```
+
+This file looks like the following:
+
+
+``` nix
+rec {
+  # If you only wish to change the version of GHC being used, set
+  # `ghc-version`. The following versions are currently available:
+  #  * ghc7103
+  #  * ghc7103Binary
+  #  * ghc802
+  #  * ghc821Binary
+  #  * ghc822
+  #  * ghc841
+  #  * ghc842
+  #  * ghcHEAD
+  #  * ghcjs
+  #  * ghcjsHEAD
+  #  * integer-simple
+  # NOTE: not all versions have been tested with snack.
+  ghc-version = "ghc802";
+
+  # Alternatively you can provide you own `ghcWithPackages`, which should have
+  # the same structure as that provided by
+  # `pkgs.haskell.packages.<version>.ghcWithPackages:
+  ghcWithPackages = pkgs.haskellPackages.ghcWithPackages;
+
+  # Finally you can provide your own set of Nix packages, which should evaluate
+  # to an attribute set:
+  pkgs = import ./nix;
+}
+```
+
+### Advanced Nix Example
 
 You may want custom builds that involve things such as [archiving and base64
 encoding entire

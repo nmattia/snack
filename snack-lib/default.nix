@@ -2,6 +2,8 @@
 # TODO: currently single out derivations prepend the PWD to the path
 # TODO: make sure that filters for "base" are airtight
 { pkgs
+, ghc-version ? "ghc822"
+, ghcWithPackages ? pkgs.haskell.packages.${ghc-version}.ghcWithPackages
 }:
 
 with pkgs;
@@ -16,7 +18,7 @@ with (callPackage ./package-spec.nix {});
 with (callPackage ./hpack.nix {});
 
 let
-  ghcWith = deps: haskellPackages.ghcWithPackages
+  ghcWith = deps: ghcWithPackages
     (ps: map (p: ps.${p}) deps);
 
   # Assumes the package description describes an executable

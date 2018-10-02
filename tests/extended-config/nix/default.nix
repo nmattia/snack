@@ -1,4 +1,3 @@
-{}:
 let
   spec = builtins.fromJSON (builtins.readFile ../../../nix/nixpkgs/nixpkgs-src.json);
   nixpkgs =
