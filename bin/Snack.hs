@@ -92,7 +92,7 @@ data SnackConfig_ c = SnackConfig
 
 data Command
   = Build
-  | Run
+  | Run [String] -- Run with extra args
   | Ghci
 
 main :: IO ()
@@ -372,31 +372,37 @@ snackGhciHPack snackCfg packageYaml = do
 runCommand :: SnackConfig -> Mode -> Command -> IO ()
 runCommand snackCfg (Standalone snackNix) = \case
   Build -> S.shelly $ void $ snackBuild snackCfg snackNix
-  Run -> quiet (snackBuild snackCfg snackNix) >>= runBuildResult
-  Ghci -> runExe =<< ghciExePath <$> (quiet (snackGhci snackCfg snackNix))
+  Run args -> quiet (snackBuild snackCfg snackNix) >>= runBuildResult args
+  Ghci -> flip runExe [] =<<
+    ghciExePath <$> (quiet (snackGhci snackCfg snackNix))
 runCommand snackCfg (HPack packageYaml) = \case
   Build -> S.shelly $ void $ snackBuildHPack snackCfg packageYaml
-  Run -> quiet (snackBuildHPack snackCfg packageYaml) >>= runBuildResult
-  Ghci ->
-    runExe =<< ghciExePath <$>  (quiet (snackGhciHPack snackCfg packageYaml))
+  Run args ->
+    quiet (snackBuildHPack snackCfg packageYaml) >>= runBuildResult args
+  Ghci -> flip runExe [] =<<
+    ghciExePath <$> quiet (snackGhciHPack snackCfg packageYaml)
 
-runBuildResult :: BuildResult -> IO ()
-runBuildResult = \case
-    BuiltExecutable (ExecutableBuild p) -> runExe p
+runBuildResult :: [String] -> BuildResult -> IO ()
+runBuildResult args = \case
+    BuiltExecutable (ExecutableBuild p) -> runExe p args
     BuiltMulti b
-      | [ExecutableBuild exe] <- Map.elems (executableBuilds b) -> runExe exe
+      | [ExecutableBuild exe] <- Map.elems (executableBuilds b) ->
+          runExe exe args
     b -> fail $ "Unexpected build type: " <> show b
 
 quiet :: Sh a -> IO a
 quiet = S.shelly . S.print_stdout False
-runExe :: NixPath -> IO ()
-runExe (NixPath fp) = executeFile (T.unpack fp) True [] Nothing
+
+runExe :: NixPath -> [String] -> IO ()
+runExe (NixPath fp) args = executeFile (T.unpack fp) True args Nothing
 
 parseCommand :: Opts.Parser Command
 parseCommand =
   Opts.hsubparser $
     ( Opts.command "build" (Opts.info (pure Build) mempty)
-    <>  Opts.command "run" (Opts.info (pure Run) mempty)
+    <>  Opts.command "run" (Opts.info
+        ( Run <$> Opts.many (Opts.argument Opts.str (Opts.metavar "ARG"))
+        ) mempty)
     <>  Opts.command "ghci" (Opts.info (pure Ghci) mempty)
     )
 
