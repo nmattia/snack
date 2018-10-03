@@ -400,7 +400,9 @@ parseCommand :: Opts.Parser Command
 parseCommand =
   Opts.hsubparser $
     ( Opts.command "build" (Opts.info (pure Build) mempty)
-    <>  Opts.command "run" (Opts.info (Run <$> Opts.many (Opts.argument Opts.str mempty)) mempty)
+    <>  Opts.command "run" (Opts.info
+        ( Run <$> Opts.many (Opts.argument Opts.str (Opts.metavar "ARG"))
+        ) mempty)
     <>  Opts.command "ghci" (Opts.info (pure Ghci) mempty)
     )
 
