@@ -1,13 +1,18 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MagicHash #-}
 
+module Main (main) where
+
 import Control.Monad.IO.Class
 import Data.Semigroup
 import System.Environment
+import Control.Exception
 import qualified DriverPipeline
 import qualified DynFlags
 import qualified FastString
 import qualified GHC
+import qualified ErrUtils
+import qualified Bag
 import qualified GHC.IO.Handle.Text as Handle
 import qualified HsImpExp
 import qualified HsSyn
@@ -19,6 +24,7 @@ import qualified Parser
 import qualified SrcLoc
 import qualified StringBuffer
 import qualified System.Process as Process
+import System.IO (stderr)
 
 main :: IO ()
 main = do
@@ -33,26 +39,39 @@ main = do
     libdir <- filter (/= '\n') <$> Handle.hGetContents ho1
     _ <- Process.waitForProcess hdl
 
-    -- Read the file that we want to parse
-    str <- readFile fp
-
     -- Some gymnastics to make the parser happy
     res <- GHC.runGhc (Just libdir)
       $ do
 
+        -- Without this line GHC parsing fails with the following error
+        -- message:
+        --    <command line>: unknown package: rts
+        _ <- GHC.setSessionDynFlags =<< GHC.getSessionDynFlags
+
         hsc_env <- GHC.getSession
+
         -- XXX: We need to preprocess the file so that all extensions are
         -- loaded
-        (dflags, _) <- liftIO $ DriverPipeline.preprocess hsc_env (fp, Nothing)
-        hsc_env <- GHC.setSession hsc_env { HscTypes.hsc_dflags = dflags }
+        (dflags, fp2) <- liftIO $
+          DriverPipeline.preprocess hsc_env (fp, Nothing)
+        _ <- GHC.setSessionDynFlags dflags
 
-        runParser fp str (Parser.parseModule) >>= \case
+        -- Read the file that we want to parse
+        str <- liftIO $ readFile fp2
+
+        runParser fp2 str Parser.parseModule >>= \case
           Lexer.POk _ (SrcLoc.L _ res) -> pure res
-          Lexer.PFailed _ e -> fail $ unlines
-            [ "Could not parse module: "
-            , fp
-            , " because " <> Outputable.showSDocUnsafe e
-            ]
+          Lexer.PFailed spn e -> liftIO $ do
+            Handle.hPutStrLn stderr $ unlines
+              [ "Could not parse module: "
+              , fp2
+              , " (originally " <> fp <> ")"
+              , " because " <> Outputable.showSDocUnsafe e
+              , " src span "
+              , show spn
+              ]
+            throwIO $ HscTypes.mkSrcErr $
+              Bag.unitBag $ ErrUtils.mkPlainErrMsg dflags spn e
 
     -- Extract the imports from the parsed module
     let imports' =

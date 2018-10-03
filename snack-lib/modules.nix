@@ -56,7 +56,7 @@ rec {
       ghc = haskellPackages.ghcWithPackages (ps: [ ps.ghc ]);
       importParser = runCommand "import-parser"
         { buildInputs = [ ghc ];
-        } "ghc -package ghc ${./Imports.hs} -o $out" ;
+        } "ghc -Wall -Werror -package ghc ${./Imports.hs} -o $out" ;
     # XXX: this command needs ghc in the environment so that it can call "ghc
     # --print-libdir"...
     in runCommand "dependencies-json"
