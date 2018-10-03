@@ -4,6 +4,7 @@
 module Main (main) where
 
 import Control.Monad.IO.Class
+import Data.List (stripPrefix)
 import Data.Semigroup
 import System.Environment
 import Control.Exception
@@ -57,7 +58,7 @@ main = do
         _ <- GHC.setSessionDynFlags dflags
 
         -- Read the file that we want to parse
-        str <- liftIO $ readFile fp2
+        str <- liftIO $ filterBOM <$> readFile fp2
 
         runParser fp2 str Parser.parseModule >>= \case
           Lexer.POk _ (SrcLoc.L _ res) -> pure res
@@ -81,6 +82,15 @@ main = do
 
     -- here we pretend that @show :: [String] -> String@ outputs JSON
     print imports'
+
+-- | Filter out the Byte Order Mark to avoid the following error:
+-- lexical error at character '\65279'
+filterBOM :: String -> String
+filterBOM = \case
+    [] -> []
+    str@(x:xs) -> case stripPrefix "\65279" str of
+      Just str' -> filterBOM str'
+      Nothing -> x : filterBOM xs
 
 runParser :: FilePath -> String -> Lexer.P a -> GHC.Ghc (Lexer.ParseResult a)
 runParser filename str parser = do
