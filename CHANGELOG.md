@@ -14,4 +14,7 @@ Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to
 - The `snack run` function to accept arguments that will be passed to the built
   executable.
 
+### Fixed
+- The module import parsing when the CPP extension is enabled.
+
 [Unreleased]: https://github.com/nmattia/snack/compare/51987daf76cffc31289e6913174dfb46b93df36b...HEAD
