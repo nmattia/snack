@@ -1,4 +1,4 @@
-{ snackNix
+{ packageNix
 , nixpkgs ? null
 }:
   let
@@ -7,7 +7,7 @@
       then import <nixpkgs> {}
       else import nixpkgs {};
     snack = pkgs.snack-lib;
-    snackDef = import snackNix;
+    snackDef = import packageNix;
   in
 {
   build = (snack.executable snackDef).build;

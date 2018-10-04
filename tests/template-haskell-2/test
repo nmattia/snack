@@ -3,12 +3,12 @@
 
 set -euo pipefail
 
-snack -j4 build -s code/snack.nix
-snack -j4 run -s code/snack.nix | diff golden -
+snack -j4 build -s code/package.nix
+snack -j4 run -s code/package.nix | diff golden -
 
 TMP_FILE=$(mktemp)
 
-capture_io "$TMP_FILE" main | snack -j4 -s code/snack.nix ghci
+capture_io "$TMP_FILE" main | snack -j4 -s code/package.nix ghci
 
 diff golden $TMP_FILE
 rm $TMP_FILE

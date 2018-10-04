@@ -16,6 +16,6 @@ test() {
 }
 
 SNACK="snack" test
-SNACK="snack -s ./snack.nix" test
-SNACK="snack -j4 -s ./snack.nix -l ../../snack-lib" test
+SNACK="snack -s ./package.nix" test
+SNACK="snack -j4 -s ./package.nix -l ../../snack-lib" test
 # Note: no HPack test, because HPack doesn't support multi library

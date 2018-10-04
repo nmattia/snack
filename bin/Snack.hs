@@ -10,7 +10,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Main where
+module Main (main) where
 
 import Control.Applicative
 import Control.Monad
@@ -51,22 +51,28 @@ type Mode = Mode_ 'ConfigReady
 type ModeRaw = Mode_ 'ConfigRaw
 
 data Mode_ c
-  = Standalone (Config c FilePath SnackNix) -- Reads a snack.nix file
+  = Standalone (Config c FilePath PackageNix) -- Reads a package.nix file
   | HPack (Config c FilePath PackageYaml) -- Reads a package.yaml
 
 prepareMode :: ModeRaw -> IO Mode
 prepareMode = \case
-    Standalone fp -> Standalone <$> mkSnackNix fp
+    Standalone fp -> Standalone <$> mkPackageNix fp
     HPack fp -> HPack <$> mkPackageYaml fp
 
 -- | Like a FilePath, but Nix friendly
-newtype SnackNix = SnackNix { unSnackNix :: FilePath }
+newtype PackageNix = PackageNix { unPackageNix :: FilePath }
+
+mkPackageNix :: FilePath -> IO PackageNix
+mkPackageNix = fmap PackageNix . canonicalizePath
+
+-- | Like a FilePath, but Nix friendly
+newtype SnackNix = SnackNix FilePath
 
 mkSnackNix :: FilePath -> IO SnackNix
 mkSnackNix = fmap SnackNix . canonicalizePath
 
 -- | Like a FilePath, but Nix friendly
-newtype SnackLib = SnackLib { unSnackLib :: FilePath }
+newtype SnackLib = SnackLib FilePath
 
 mkSnackLib :: FilePath -> IO SnackLib
 mkSnackLib = fmap SnackLib . canonicalizePath
@@ -87,6 +93,7 @@ type SnackConfigRaw = SnackConfig_ 'ConfigRaw
 -- | Extra configuration for snack
 data SnackConfig_ c = SnackConfig
   { snackLib :: Config c (Maybe FilePath) (Maybe SnackLib)
+  , snackNix :: Maybe (Config c FilePath SnackNix)
   , snackNixCfg :: NixConfig
   }
 
@@ -125,6 +132,7 @@ prepareSnackConfig raw =
         Nothing -> pure Nothing
         Just fp -> Just <$> mkSnackLib fp
       ) <*>
+      forM (snackNix raw) mkSnackNix <*>
       pure (snackNixCfg raw)
 
 parseNixConfig :: Opts.Parser NixConfig
@@ -152,15 +160,21 @@ parseSnackConfig = SnackConfig <$> Opts.optional
           )
         )
     ) <*>
+    Opts.optional (
+        Opts.strOption
+        (Opts.long "snack-nix"
+        <> Opts.short 'b'
+        <> Opts.metavar "PATH")
+        ) <*>
     parseNixConfig
 
 parseMode :: Opts.Parser ModeRaw
 parseMode =
     (Standalone <$>
         Opts.strOption
-        (Opts.long "snack-nix"
+        (Opts.long "package-nix"
         <> Opts.short 's'
-        <> Opts.value "./snack.nix"
+        <> Opts.value "./package.nix"
         <> Opts.metavar "PATH")
         )
     <|>
@@ -179,7 +193,7 @@ parseOptions =
       parseMode <*>
       parseCommand
 
-newtype ModuleName = ModuleName { unModuleName :: T.Text }
+newtype ModuleName = ModuleName T.Text
   deriving newtype (Ord, Eq, Aeson.FromJSONKey)
   deriving stock Show
 
@@ -214,13 +228,11 @@ instance FromJSON GhciBuild where
 
 -- The kinds of builds: library, executable, or a mix of both (currently only
 -- for HPack)
-newtype LibraryBuild = LibraryBuild
-  { unLibraryBuild :: Map.Map ModuleName NixPath }
+newtype LibraryBuild = LibraryBuild (Map.Map ModuleName NixPath)
   deriving newtype FromJSON
   deriving stock Show
 
-newtype ExecutableBuild = ExecutableBuild
-  { exePath :: NixPath }
+newtype ExecutableBuild = ExecutableBuild NixPath
   deriving stock Show
 
 instance FromJSON ExecutableBuild where
@@ -228,7 +240,7 @@ instance FromJSON ExecutableBuild where
     ExecutableBuild <$> o .: "exe_path"
 
 data MultiBuild = MultiBuild
-  { librayBuild :: Maybe LibraryBuild
+  { _librayBuild :: Maybe LibraryBuild
   , executableBuilds :: Map.Map T.Text ExecutableBuild
   }
   deriving stock Show
@@ -251,7 +263,7 @@ data NixArgType
 
 newtype NixExpr = NixExpr { unNixExpr :: T.Text }
 
-newtype NixPath = NixPath { unNixPath :: T.Text }
+newtype NixPath = NixPath T.Text
   deriving newtype FromJSON
   deriving stock Show
 
@@ -268,17 +280,30 @@ nixBuild snackCfg extraNixArgs nixExpr =
         { #{ intercalate "," funArgs } }:
         let
           spec = builtins.fromJSON specJson;
-          pkgs = import (builtins.fetchTarball
-            { url = "https://github.com/${spec.owner}/${spec.repo}/archive/${spec.rev}.tar.gz";
-              sha256 = spec.sha256;
-            }) {} ;
+          config = #{ pkgsSrc };
+          pkgs = config.pkgs;
           libDir = #{ libDir };
-          snack = pkgs.callPackage libDir {};
+          snack = (import libDir) config;
         in #{ T.unpack $ unNixExpr $ nixExpr }
       |])
       "nix-build"
       cliArgs
   where
+    pkgsSrc :: String
+    pkgsSrc =  case snackNix snackCfg of
+      Just (SnackNix fp) ->
+        [i|(import #{ fp })|]
+      Nothing ->
+        [i|
+        { pkgs = import
+            (
+            builtins.fetchTarball
+               { url = "https://github.com/${spec.owner}/${spec.repo}/archive/${spec.rev}.tar.gz";
+                 sha256 = spec.sha256;
+               }
+            ) {} ;
+        }
+        |]
     libDir :: String
     libDir = case snackLib snackCfg of
       Just (SnackLib fp) -> fp
@@ -317,28 +342,28 @@ nixBuild snackCfg extraNixArgs nixExpr =
       : [ argName narg , argValue narg ]
     nixCfg = snackNixCfg snackCfg
 
-snackBuild :: SnackConfig -> SnackNix -> Sh BuildResult
-snackBuild snackCfg snackNix = do
+snackBuild :: SnackConfig -> PackageNix -> Sh BuildResult
+snackBuild snackCfg packageNix = do
     NixPath out <- nixBuild snackCfg
       [ NixArg
-          { argName = "snackNix"
-          , argValue = T.pack $ unSnackNix snackNix
+          { argName = "packageNix"
+          , argValue = T.pack $ unPackageNix packageNix
           , argType = Arg
           }
       ]
-      $ NixExpr "snack.inferSnackBuild snackNix"
+      $ NixExpr "snack.inferSnackBuild packageNix"
     decodeOrFail =<< liftIO (BS.readFile $ T.unpack out)
 
-snackGhci :: SnackConfig -> SnackNix -> Sh GhciBuild
-snackGhci snackCfg snackNix = do
+snackGhci :: SnackConfig -> PackageNix -> Sh GhciBuild
+snackGhci snackCfg packageNix = do
     NixPath out <- nixBuild snackCfg
       [ NixArg
-          { argName = "snackNix"
-          , argValue = T.pack $ unSnackNix snackNix
+          { argName = "packageNix"
+          , argValue = T.pack $ unPackageNix packageNix
           , argType = Arg
           }
       ]
-      $ NixExpr "snack.inferSnackGhci snackNix"
+      $ NixExpr "snack.inferSnackGhci packageNix"
     liftIO (BS.readFile (T.unpack out)) >>= decodeOrFail >>= \case
       BuiltGhci g -> pure g
       b -> throwIO $ userError $ "Expected GHCi build, got " <> show b
@@ -370,11 +395,11 @@ snackGhciHPack snackCfg packageYaml = do
       b -> throwIO $ userError $ "Expected GHCi build, got " <> show b
 
 runCommand :: SnackConfig -> Mode -> Command -> IO ()
-runCommand snackCfg (Standalone snackNix) = \case
-  Build -> S.shelly $ void $ snackBuild snackCfg snackNix
-  Run args -> quiet (snackBuild snackCfg snackNix) >>= runBuildResult args
+runCommand snackCfg (Standalone packageNix) = \case
+  Build -> S.shelly $ void $ snackBuild snackCfg packageNix
+  Run args -> quiet (snackBuild snackCfg packageNix) >>= runBuildResult args
   Ghci -> flip runExe [] =<<
-    ghciExePath <$> (quiet (snackGhci snackCfg snackNix))
+    ghciExePath <$> (quiet (snackGhci snackCfg packageNix))
 runCommand snackCfg (HPack packageYaml) = \case
   Build -> S.shelly $ void $ snackBuildHPack snackCfg packageYaml
   Run args ->
@@ -415,9 +440,6 @@ runStdin1 stin p args = do
     run p args >>= \case
       [out] -> pure out
       xs -> throwIO $ userError $ "unexpected output: " <> show xs
-
-run_ :: S.FilePath -> [T.Text] -> Sh ()
-run_ p args = void $ run p args
 
 specJson :: T.Text
 specJson = $(embedStringFile "spec.json")
