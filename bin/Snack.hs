@@ -21,7 +21,7 @@ import Data.List (intercalate)
 import Data.Semigroup ((<>))
 import Data.String.Interpolate
 import Shelly (Sh)
-import System.Directory (canonicalizePath)
+import System.Directory (doesFileExist, doesPathExist, canonicalizePath)
 import System.Posix.Process (executeFile)
 import UnliftIO.Exception
 import qualified Data.Aeson as Aeson
@@ -63,25 +63,39 @@ prepareMode = \case
 newtype PackageNix = PackageNix { unPackageNix :: FilePath }
 
 mkPackageNix :: FilePath -> IO PackageNix
-mkPackageNix = fmap PackageNix . canonicalizePath
+mkPackageNix = fmap PackageNix . mkFilePath
 
 -- | Like a FilePath, but Nix friendly
 newtype SnackNix = SnackNix FilePath
 
 mkSnackNix :: FilePath -> IO SnackNix
-mkSnackNix = fmap SnackNix . canonicalizePath
+mkSnackNix = fmap SnackNix . mkFilePath
 
 -- | Like a FilePath, but Nix friendly
 newtype SnackLib = SnackLib FilePath
 
 mkSnackLib :: FilePath -> IO SnackLib
-mkSnackLib = fmap SnackLib . canonicalizePath
+mkSnackLib = fmap SnackLib . mkDirPath
 
 -- | Like a FilePath, but Nix friendly
 newtype PackageYaml = PackageYaml { unPackageYaml :: FilePath }
 
 mkPackageYaml :: FilePath -> IO PackageYaml
-mkPackageYaml = fmap PackageYaml . canonicalizePath
+mkPackageYaml = fmap PackageYaml . mkFilePath
+
+mkDirPath :: FilePath -> IO FilePath
+mkDirPath fp = doesPathExist fp >>= \case
+    True -> doesFileExist fp >>= \case
+      True -> throwIO $ userError $ fp <> " is a file"
+      False -> canonicalizePath fp
+    False -> throwIO $ userError $ fp <> " does not exist"
+
+mkFilePath :: FilePath -> IO FilePath
+mkFilePath fp = doesFileExist fp >>= \case
+    True -> canonicalizePath fp
+    False -> doesPathExist fp >>= \case
+      True -> throwIO $ userError $ fp <> " is a directory"
+      False -> throwIO $ userError $ fp <> " does not exist"
 
 -- | How to call @nix-build@
 newtype NixConfig = NixConfig
@@ -92,7 +106,7 @@ type SnackConfigRaw = SnackConfig_ 'ConfigRaw
 
 -- | Extra configuration for snack
 data SnackConfig_ c = SnackConfig
-  { snackLib :: Config c (Maybe FilePath) (Maybe SnackLib)
+  { snackLib :: Maybe (Config c FilePath SnackLib)
   , snackNix :: Maybe (Config c FilePath SnackNix)
   , snackNixCfg :: NixConfig
   }
@@ -129,10 +143,7 @@ prepareOptions raw =
 prepareSnackConfig :: SnackConfigRaw -> IO SnackConfig
 prepareSnackConfig raw =
     SnackConfig <$>
-      (case snackLib raw of
-        Nothing -> pure Nothing
-        Just fp -> Just <$> mkSnackLib fp
-      ) <*>
+      forM (snackLib raw) mkSnackLib <*>
       forM (snackNix raw) mkSnackNix <*>
       pure (snackNixCfg raw)
 
