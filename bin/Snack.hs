@@ -15,7 +15,7 @@ module Main (main) where
 import Control.Applicative
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Aeson (FromJSON, (.:), (.:?))
+import Data.Aeson (FromJSON, (.:))
 import Data.FileEmbed (embedStringFile)
 import Data.List (intercalate)
 import Data.Semigroup ((<>))
@@ -251,17 +251,14 @@ instance FromJSON ExecutableBuild where
   parseJSON = Aeson.withObject "executable build" $ \o ->
     ExecutableBuild <$> o .: "exe_path"
 
-data MultiBuild = MultiBuild
-  { _librayBuild :: Maybe LibraryBuild
-  , executableBuilds :: Map.Map T.Text ExecutableBuild
+newtype MultiBuild = MultiBuild
+  { executableBuilds :: Map.Map T.Text ExecutableBuild
   }
   deriving stock Show
 
 instance Aeson.FromJSON MultiBuild where
   parseJSON = Aeson.withObject "multi build" $ \o ->
-    MultiBuild
-      <$> o .:? "library"
-      <*> o .: "executables"
+    MultiBuild <$> o .: "executables"
 
 data NixArg = NixArg
   { argType :: NixArgType
