@@ -97,9 +97,11 @@ Available commands:
   ghci
 ```
 
-## Usage
+Snack can be used to build, run and interact with packages. There is no
+**test** command as we treat test suites as we do executables, giving each test
+suite its own package description.
 
-Snack can be used to build, run and interact with packages.
+## Usage
 
 There are two ways to tell snack about a package;
 * Use [`--package-nix`](#nix) if you need more control over your build.
