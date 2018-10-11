@@ -95,6 +95,9 @@ Available commands:
   build
   run
   ghci
+
+Unavailable commands:
+  test                     Use build, run or ghci commands with test suites.
 ```
 
 Snack can be used to build, run and interact with packages. There is no
