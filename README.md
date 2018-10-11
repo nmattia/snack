@@ -99,8 +99,15 @@ Available commands:
 
 ## Usage
 
-You can use Hpack (for simple builds or if you already have a `package.yaml`)
-or Nix (if you need more control over your build).
+Snack can be used to build, run and interact with packages.
+
+There are two ways to tell snack about a package;
+* Use [`--package-nix`](#nix) if you need more control over your build.
+* Use [`--package-yaml`](#hpack) for simple builds or if you already have
+  a `package.yaml` file.
+
+If a package option is not supplied then snack will run as if
+`--package-nix=package.nix` was given as the package option.
 
 The next two sections show an example config for each option. They use the
 following example project which displays the title of the top-rated post on the
