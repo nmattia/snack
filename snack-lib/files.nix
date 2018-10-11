@@ -50,6 +50,12 @@ rec {
   doesFileExist = base: filename:
     lib.lists.elem filename (listFilesInDir base);
 
+  fileExtension = fp:
+    let
+      exts = lib.splitString "." (builtins.baseNameOf fp);
+    in if lib.length exts == 0 then null else lib.last exts;
+
+
   listFilesInDir = dir:
   let
     go = dir: dirName:
