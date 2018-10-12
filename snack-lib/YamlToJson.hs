@@ -13,5 +13,5 @@ main :: IO ()
 main = do
     [file] <- getArgs
     yaml <- BS8.readFile file
-    let Just value = Yaml.decode yaml :: Maybe Aeson.Value
+    let Right value = Yaml.decodeEither' yaml :: Either Yaml.ParseException Aeson.Value
     BL8.putStrLn $ Aeson.encode value
