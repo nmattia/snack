@@ -1,6 +1,7 @@
 # This is the entry point of the library, and badly needs documentation.
 # TODO: currently single out derivations prepend the PWD to the path
 # TODO: make sure that filters for "base" are airtight
+# TODO: document the sh*t out of these functions
 { pkgs
 , ghc-version ? "ghc822"
 , ghcWithPackages ? pkgs.haskell.packages.${ghc-version}.ghcWithPackages
@@ -66,6 +67,37 @@ let
       { out = drv.out;
         exe_path = "${drv.out}/${drv.relExePath}";
       };
+
+  # TODO: deduplicate extensions + update README with --package-file
+  inferBuild = packageFile:
+    let
+      basename = builtins.baseNameOf packageFile;
+      components = pkgs.lib.strings.splitString "." basename;
+      ext =
+        if pkgs.lib.length components <= 1
+        then abort ("File " ++ packageFile ++ " does not have an extension")
+        else pkgs.lib.last components;
+      build =
+        if ext == "nix" then inferSnackBuild
+        else if ext == "yaml" then inferHPackBuild
+        else if ext == "yml" then inferHPackBuild
+        else abort ("Unknown extension " ++ ext ++ " of file " ++ packageFile);
+    in build packageFile;
+
+  inferGhci = packageFile:
+    let
+      basename = builtins.baseNameOf packageFile;
+      components = pkgs.lib.strings.splitString "." basename;
+      ext =
+        if pkgs.lib.length components <= 1
+        then abort ("File " ++ packageFile ++ " does not have an extension")
+        else pkgs.lib.last components;
+      ghci =
+        if ext == "nix" then inferSnackGhci
+        else if ext == "yaml" then inferHPackGhci
+        else if ext == "yml" then inferHPackGhci
+        else abort ("Unknown extension " ++ ext ++ " of file " ++ packageFile);
+    in ghci packageFile;
 
   inferSnackBuild = packageNix: mkPackage (import packageNix);
 
@@ -152,6 +184,8 @@ let
 in
   {
     inherit
+    inferBuild
+    inferGhci
     inferSnackBuild
     inferSnackGhci
     inferHPackBuild
@@ -160,7 +194,7 @@ in
     buildAsExecutable
     buildAsLibrary
     snackSpec
-    hpackSpec
+    hpackSpecs
     mkPackage
     ;
   }
