@@ -40,7 +40,7 @@ data ConfigStage
   | ConfigReady
 
 type family Config (c :: ConfigStage) ty1 ty2 where
-  Config 'ConfigRaw ty1 _= ty1
+  Config 'ConfigRaw ty1 _ = ty1
   Config 'ConfigReady _ ty2 = ty2
 
 ---
