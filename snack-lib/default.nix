@@ -156,11 +156,10 @@ in
     inferSnackGhci
     inferHPackBuild
     inferHPackGhci
-    packageYaml
     buildAsExecutable
     buildAsLibrary
     snackSpec
-    hpackSpec
+    hpackSpecs
     mkPackage
     ;
   }

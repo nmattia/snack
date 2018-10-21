@@ -1,0 +1,48 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -I nixpkgs=../../nix
+#!nix-shell -p hello
+#!nix-shell -p gnugrep
+#!nix-shell -p nix
+#!nix-shell -i bash
+# vim: ft=sh sw=2 et
+
+# TODO: --pure
+
+set -euo pipefail
+
+nix-instantiate
+echo hello
+drv=$(nix-instantiate)
+str=$(NIX_SHOW_STATS=1 \
+  nix-store --realize $drv 3>&2 2>&1 1>/dev/null || drv=bad)
+
+if [[ "$drv" == "bad" ]];then
+    echo $str
+    exit 1
+fi
+
+function attr() {
+  echo "$str" | grep "$1:" | grep -oE "[[:digit:]]+(.[[:digit:]])*"
+}
+
+echo "number of thunks:"
+attr "number of thunks"
+
+number_of_thunks=$(attr "number of thunks")
+number_of_thunks_max=300
+
+echo "time elapsed:"
+attr "time elapsed"
+
+if (( number_of_thunks > number_of_thunks_max )); then
+    echo "$number_of_thunks is greater than $number_of_thunks_max!!!"
+    #exit 1
+fi
+
+values_allocated_count=$(attr "values allocated count")
+values_allocated_count_max=300
+
+if (( values_allocated_count > values_allocated_count_max )); then
+    echo "$values_allocated_count is greater than $values_allocated_count_max!!!"
+    #exit 1
+fi
