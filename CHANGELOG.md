@@ -10,6 +10,7 @@ Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to
 ### Added
 - This CHANGELOG file to track changes to the command line and library APIs.
 - Support for custom GHC version, `ghcWithPackages` and `pkgs`
+- Fix matching on Haskell files. Any file in any subdirectory ending in `.hs` will be matched, both lower- and uppercase filenames are accepted.
 
 ### Changed
 - The `snack run` function to accept arguments that will be passed to the built
