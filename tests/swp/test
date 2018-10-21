@@ -4,8 +4,11 @@
 set -euo pipefail
 
 test() {
-  echo | $SNACK ghci
-  $SNACK run
+  TMP_FILE=$(mktemp)
+
+  cat $($SNACK build) | jq -M '.result | keys' > $TMP_FILE
+
+  diff golden.jq $TMP_FILE
 }
 
 SNACK="snack -j4" test
