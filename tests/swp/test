@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# vim: ft=sh sw=2 et
+
+set -euo pipefail
+
+test() {
+  TMP_FILE=$(mktemp)
+
+  cat $($SNACK build) | jq -M '.result | keys' > $TMP_FILE
+
+  diff golden.jq $TMP_FILE
+}
+
+SNACK="snack -j4" test
