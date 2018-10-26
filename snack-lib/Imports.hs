@@ -29,10 +29,9 @@ import System.IO (stderr)
 
 main :: IO ()
 main = do
-    fp <- getArgs >>= \case
-      [fp] -> pure fp
-      [] -> fail "Please provide exactly one argument (got none)"
-      xs -> fail $ "Please provide exactly one argument, got: \n" <> unlines xs
+    (fp:exts) <- getArgs >>= \case
+      args@(_:_) -> pure args
+      [] -> fail "Please provide at least one argument (got none)"
 
     -- Read the output of @--print-libdir@ for 'runGhc'
     (_,Just ho1, _, hdl) <- Process.createProcess
@@ -44,18 +43,25 @@ main = do
     res <- GHC.runGhc (Just libdir)
       $ do
 
-        -- Without this line GHC parsing fails with the following error
-        -- message:
+        -- We allow passing some extra extensions to be parsed by GHC.
+        -- Otherwise modules that have e.g. @RankNTypes@ enabled will fail to
+        -- parse. Note: if anybody gets rid of this: even without this it /is/
+        -- necessary to run getSessionFlags/setSessionFlags at least once,
+        -- otherwise GHC parsing fails with the following error message:
         --    <command line>: unknown package: rts
-        _ <- GHC.setSessionDynFlags =<< GHC.getSessionDynFlags
+        dflags0 <- GHC.getSessionDynFlags
+        (dflags1, _leftovers, _warns) <-
+          DynFlags.parseDynamicFlagsCmdLine dflags0 (map (SrcLoc.mkGeneralLocated "on the commandline") exts)
+        _ <- GHC.setSessionDynFlags dflags1
 
         hsc_env <- GHC.getSession
 
+
         -- XXX: We need to preprocess the file so that all extensions are
         -- loaded
-        (dflags, fp2) <- liftIO $
+        (dflags2, fp2) <- liftIO $
           DriverPipeline.preprocess hsc_env (fp, Nothing)
-        _ <- GHC.setSessionDynFlags dflags
+        _ <- GHC.setSessionDynFlags dflags2
 
         -- Read the file that we want to parse
         str <- liftIO $ filterBOM <$> readFile fp2
@@ -72,7 +78,7 @@ main = do
               , show spn
               ]
             throwIO $ HscTypes.mkSrcErr $
-              Bag.unitBag $ ErrUtils.mkPlainErrMsg dflags spn e
+              Bag.unitBag $ ErrUtils.mkPlainErrMsg dflags2 spn e
 
     -- Extract the imports from the parsed module
     let imports' =

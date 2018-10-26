@@ -47,7 +47,7 @@ rec {
       modImportsNames = modName:
         lib.lists.filter
           (modName': ! builtins.isNull (baseByModuleName modName'))
-          (listModuleImports baseByModuleName modName);
+          (listModuleImports baseByModuleName extsByModuleName modName);
     in
       # TODO: DFS instead of Fold
       { f = modName:

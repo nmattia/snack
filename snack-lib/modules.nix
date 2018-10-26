@@ -31,9 +31,9 @@ rec {
     "${singleOut base (moduleToFile mod)}/${moduleToFile mod}";
 
   # Generate a list of haskell module names needed by the haskell file
-  listModuleImports = baseByModuleName: modName:
+  listModuleImports = baseByModuleName: extsByModuleName: modName:
     builtins.fromJSON
-     (builtins.readFile (listAllModuleImportsJSON (baseByModuleName modName) modName))
+     (builtins.readFile (listAllModuleImportsJSON baseByModuleName extsByModuleName modName))
     ;
 
   # Whether the file is a Haskell module or not. It uses very simple
@@ -51,8 +51,12 @@ rec {
 
   # Lists all module dependencies, not limited to modules existing in this
   # project
-  listAllModuleImportsJSON = base: modName:
+  listAllModuleImportsJSON = baseByModuleName: extsByModuleName: modName:
     let
+      base = baseByModuleName modName;
+      modExts =
+        lib.strings.escapeShellArgs
+          (map (x: "-X${x}") (extsByModuleName modName));
       ghc = haskellPackages.ghcWithPackages (ps: [ ps.ghc ]);
       importParser = runCommand "import-parser"
         { buildInputs = [ ghc ];
@@ -65,6 +69,6 @@ rec {
       }
 
         ''
-          ${importParser} ${singleOutModulePath base modName} > $out
+          ${importParser} ${singleOutModulePath base modName} ${modExts} > $out
         '';
 }
