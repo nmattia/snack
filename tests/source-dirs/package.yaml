@@ -1,0 +1,11 @@
+name: snack-source-dirs-test
+
+dependencies:
+    - base 
+    - conduit
+
+executable:
+    main: Foo.hs
+    source-dirs:
+    - src
+    - app
