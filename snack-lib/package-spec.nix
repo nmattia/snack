@@ -18,7 +18,10 @@ rec {
     , packages ? []
     }:
     { packageMain = main;
-      packageBase = src;
+      packageSourceDirs =
+        if builtins.isList src
+        then src
+        else [src];
       packageGhcOpts = ghcOpts;
       packageExtensions = extensions;
       packageDependencies = mkPerModuleAttr dependencies;
@@ -45,14 +48,25 @@ rec {
   # Traverses all transitive packages and returns the first package spec that
   # contains a module with given name. If none is found, returns the supplied
   # default value.
-  pkgSpecByModuleName = topPkgSpec: def: modName:
-    ( lib.findFirst
+  pkgSpecAndBaseByModuleName = topPkgSpec: modName:
+    let
+      foo = pkgSpec:
+        lib.findFirst
+          (base: lib.lists.elem modName (listModulesInDir base))
+          null
+          pkgSpec.packageSourceDirs;
+      bar = lib.concatMap
         (pkgSpec:
-          lib.lists.elem
-            modName
-            (listModulesInDir pkgSpec.packageBase)
-        )
-        def
-        (flattenPackages topPkgSpec)
-    );
+          let base = foo pkgSpec;
+          in if base == null then [] else [ { inherit pkgSpec base; } ])
+        (flattenPackages topPkgSpec);
+    in if lib.length bar <= 0 then null else
+       if lib.length bar == 1 then lib.head bar
+       else abort
+        "Refusing to return base, module name was found more than once: ${modName}";
+
+  pkgSpecByModuleName = topPkgSpec: def: modName:
+    let
+      res = pkgSpecAndBaseByModuleName topPkgSpec modName;
+    in if res == null then def else res.pkgSpec;
 }

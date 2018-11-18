@@ -37,7 +37,13 @@ in
         packageLib = withAttr package "library" null (component:
             { src =
                 let base = builtins.dirOf packageYaml;
-                in builtins.toPath "${builtins.toString base}/${component.source-dirs}";
+                in
+                  if builtins.isList component.source-dirs
+                  then builtins.map (sourceDir:
+                    builtins.toPath "${builtins.toString base}/${sourceDir}"
+                    ) component.source-dirs
+                  else
+                    builtins.toPath "${builtins.toString base}/${component.source-dirs}";
               dependencies = topDeps ++ mkDeps component;
               extensions = topExtensions ++ (optAttr component "extensions" []);
             }
@@ -55,9 +61,14 @@ in
           in
             { main = fileToModule component.main;
               src =
-                let
-                  base = builtins.dirOf packageYaml;
-                in builtins.toPath "${builtins.toString base}/${component.source-dirs}";
+                let base = builtins.dirOf packageYaml;
+                in
+                  if builtins.isList component.source-dirs
+                  then builtins.map (sourceDir:
+                    builtins.toPath "${builtins.toString base}/${sourceDir}"
+                    ) component.source-dirs
+                  else
+                    builtins.toPath "${builtins.toString base}/${component.source-dirs}";
               dependencies = topDeps ++ dropVersionBounds depOrPack.wrong;
               extensions = topExtensions ++ (optAttr component "extensions" []);
             packages = map (_: packageLib) depOrPack.right;

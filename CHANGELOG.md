@@ -9,14 +9,15 @@ Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to
 
 ### Added
 - This CHANGELOG file to track changes to the command line and library APIs.
-- Support for custom GHC version, `ghcWithPackages` and `pkgs`
+- Support for custom GHC version, `ghcWithPackages` and `pkgs`.
+- Support for more than one directory in `src` (and HPack's `source-dirs`).
 
 ### Changed
 - The `snack run` function to accept arguments that will be passed to the built
   executable.
 - The `snack.nix` now describes the build environment and packages are
   described through `package.nix` (i.e. to migrate: rename `snack.nix` to
-  `package.nix`)
+  `package.nix`).
 
 ### Fixed
 - The module import parsing when the CPP extension is enabled.

@@ -10,16 +10,17 @@ rec {
   singleOut = base: file:
     let
       basePrefix = (builtins.toString base) + "/";
-      pred = file: path: type:
+      pred = path: type:
         let
           actual = lib.strings.removePrefix basePrefix path;
           expected = file;
         in
           (expected == actual) ||
           (type == "directory" && (lib.strings.hasPrefix actual expected));
-      # TODO: even though we're doing a lot of cleaning, there's sitll some
+      # TODO: even though we're doing a lot of cleaning, there's still some
       # 'does-file-exist' happening
-      src0 = lib.cleanSource base;
+      src = lib.cleanSourceWith
+        { filter = pred; src = lib.cleanSource base; };
       name = # Makes the file name derivation friendly
         lib.stringAsChars
         (x:
@@ -30,8 +31,7 @@ rec {
         ) file;
 
     in stdenv.mkDerivation {
-      inherit name;
-      src = lib.cleanSourceWith  { filter = (pred file); src = src0; };
+      inherit name src;
       builder = writeScript (name + "-single-out")
       # TODO: make sure the file actually exists and that there's only one
       ''

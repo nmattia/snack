@@ -100,8 +100,8 @@ rec {
   modSpecFoldFromPackageSpec = pkgSpec:
       let
         baseByModuleName = modName:
-          let res = pkgSpecByModuleName pkgSpec null modName;
-          in if res == null then null else res.packageBase;
+          let res = pkgSpecAndBaseByModuleName pkgSpec modName;
+          in if res == null then null else res.base;
         depsByModuleName = modName:
           (pkgSpecByModuleName
             pkgSpec
