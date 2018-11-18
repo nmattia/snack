@@ -40,7 +40,7 @@ data ConfigStage
   | ConfigReady
 
 type family Config (c :: ConfigStage) ty1 ty2 where
-  Config 'ConfigRaw ty1 _= ty1
+  Config 'ConfigRaw ty1 _ = ty1
   Config 'ConfigReady _ ty2 = ty2
 
 ---
@@ -101,6 +101,7 @@ data Command
   = Build
   | Run [String] -- Run with extra args
   | Ghci
+  | Test
 
 main :: IO ()
 main = do
@@ -400,12 +401,17 @@ runCommand snackCfg (Standalone packageNix) = \case
   Run args -> quiet (snackBuild snackCfg packageNix) >>= runBuildResult args
   Ghci -> flip runExe [] =<<
     ghciExePath <$> (quiet (snackGhci snackCfg packageNix))
+  Test -> noTest
 runCommand snackCfg (HPack packageYaml) = \case
   Build -> S.shelly $ void $ snackBuildHPack snackCfg packageYaml
   Run args ->
     quiet (snackBuildHPack snackCfg packageYaml) >>= runBuildResult args
   Ghci -> flip runExe [] =<<
     ghciExePath <$> quiet (snackGhciHPack snackCfg packageYaml)
+  Test -> noTest
+
+noTest :: IO a
+noTest = fail "There is no test command for test suites"
 
 runBuildResult :: [String] -> BuildResult -> IO ()
 runBuildResult args = \case
@@ -423,12 +429,16 @@ runExe (NixPath fp) args = executeFile (T.unpack fp) True args Nothing
 
 parseCommand :: Opts.Parser Command
 parseCommand =
-  Opts.hsubparser $
+  Opts.hsubparser
     ( Opts.command "build" (Opts.info (pure Build) mempty)
     <>  Opts.command "run" (Opts.info
         ( Run <$> Opts.many (Opts.argument Opts.str (Opts.metavar "ARG"))
         ) mempty)
     <>  Opts.command "ghci" (Opts.info (pure Ghci) mempty)
+    )
+    <|> Opts.hsubparser
+    ( Opts.command "test" (Opts.info (pure Test) (Opts.progDesc "Use build, run or ghci commands with test suites."))
+    <> Opts.commandGroup "Unavailable commands:"
     )
 
 run :: S.FilePath -> [T.Text] -> Sh [T.Text]
