@@ -1,17 +1,12 @@
 # This is the entry point of the library, and badly needs documentation.
 # TODO: currently single out derivations prepend the PWD to the path
 # TODO: make sure that filters for "base" are airtight
-{ lib
-, haskellPackages
-, makeWrapper
-, rsync
-, stdenv
-, symlinkJoin
-, writeScriptBin
-, writeText
-, runCommand
-, callPackage
+{ pkgs
+, ghc-version ? "ghc822"
+, ghcWithPackages ? pkgs.haskell.packages.${ghc-version}.ghcWithPackages
 }:
+
+with pkgs;
 
 with (callPackage ./build.nix {});
 with (callPackage ./files.nix {});
@@ -23,7 +18,7 @@ with (callPackage ./package-spec.nix {});
 with (callPackage ./hpack.nix {});
 
 let
-  ghcWith = deps: haskellPackages.ghcWithPackages
+  ghcWith = deps: ghcWithPackages
     (ps: map (p: ps.${p}) deps);
 
   # Assumes the package description describes an executable
@@ -45,7 +40,7 @@ let
   libraryModSpecs = pkgSpec:
     let
       moduleSpecFold' = modSpecFoldFromPackageSpec pkgSpec;
-      modNames = listModulesInDir pkgSpec.packageBase;
+      modNames = pkgs.lib.concatMap listModulesInDir pkgSpec.packageSourceDirs;
       fld = moduleSpecFold' modSpecs';
       modSpecs' = foldDAG fld modNames;
       modSpecs = builtins.attrValues modSpecs';
@@ -72,26 +67,12 @@ let
         exe_path = "${drv.out}/${drv.relExePath}";
       };
 
-  inferSnackBuild = snackNix: writeText "snack-build-json"
-    ( builtins.toJSON (
-    let
-      pkgSpec = mkPackageSpec (import snackNix);
-    in
-      if builtins.isNull pkgSpec.packageMain
-      then
-        { "build_type" = "library";
-          "result" = buildAsLibrary pkgSpec;
-        }
-      else
-        { "build_type" = "executable";
-          "result" = buildAsExecutable pkgSpec;
-        }
-    ));
+  inferSnackBuild = packageNix: mkPackage (import packageNix);
 
-  inferSnackGhci = snackNix: writeText "snack-ghci-json"
+  inferSnackGhci = packageNix: writeText "snack-ghci-json"
     ( builtins.toJSON (
     let
-      pkgSpec = mkPackageSpec (import snackNix);
+      pkgSpec = mkPackageSpec (import packageNix);
       drv =
         if builtins.isNull pkgSpec.packageMain
         then ghciWithModules ghcWith (libraryModSpecs pkgSpec)
@@ -123,7 +104,7 @@ let
     ( builtins.toJSON (
     let
       pkgSpecs = hpackSpecs packageYaml;
-      pkgSpec = mkPackageSpec (import snackNix);
+      pkgSpec = mkPackageSpec (import packageNix);
       drv =
         let exeSpecs = builtins.attrValues pkgSpecs.executables;
         in
@@ -141,7 +122,7 @@ let
       }
     ));
 
-  snackSpec = snackNix: mkPackageSpec (import snackNix);
+  snackSpec = packageNix: mkPackageSpec (import packageNix);
   hpackSpecs = packageYaml:
     let
       descrs = pkgDescrsFromHPack packageYaml;
@@ -151,6 +132,23 @@ let
         executables =
           lib.attrsets.mapAttrs (k: v: mkPackageSpec v) descrs.executables;
       };
+
+  mkPackage = snackNixExpr: writeText "snack-build-json"
+    ( builtins.toJSON (
+    let
+      pkgSpec = mkPackageSpec snackNixExpr;
+    in
+      if builtins.isNull pkgSpec.packageMain
+      then
+        { "build_type" = "library";
+          "result" = buildAsLibrary pkgSpec;
+        }
+      else
+        { "build_type" = "executable";
+          "result" = buildAsExecutable pkgSpec;
+        }
+    ));
+
 in
   {
     inherit
@@ -163,5 +161,6 @@ in
     buildAsLibrary
     snackSpec
     hpackSpec
+    mkPackage
     ;
   }

@@ -8,5 +8,7 @@ test() {
   $SNACK run
 }
 
-SNACK="snack -s snack.nix" test
-SNACK="snack --package-yaml package.yaml" test
+SNACK="snack -j4" test
+SNACK="snack -j4 -s ./package.nix" test
+SNACK="snack -j4 -s ./package.nix -l ../../snack-lib" test
+SNACK="snack -j4 --package-yaml ./package.yaml" test

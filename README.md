@@ -5,6 +5,8 @@
 
 _snack_ is a build tool that uses the power of Nix to build Haskell projects.
 
+***Snack requires Nix >= 2.0***
+
 It will
 
   * use your existing [Hpack][hpack] file or a Nix-based config (described
@@ -60,8 +62,16 @@ Now that this is out of the way, install _snack_, break it, and help me improve 
 
 ## Install
 
+_See the [Hacking](#hacking) section if you want to hack on snack_
+
 Assuming that [Nix][nix] is installed on your machine, clone this repo
 and run:
+
+``` shell
+$ ./script/install
+```
+
+which is equivalent to
 
 ``` shell
 $ nix-env -f ./default.nix -iA snack-exe
@@ -71,21 +81,38 @@ The _snack_ executable is now in your `PATH`:
 
 ``` shell
 $ snack --help
-Usage: snack ([-s|--snack-nix PATH] | [-p|--package-yaml PATH]) COMMAND
+Usage: snack [-l|--lib DIR] [-b|--snack-nix PATH] [-j|--cores INT]
+             ([-s|--package-nix PATH] | [-p|--package-yaml PATH]) COMMAND
 
 Available options:
+  -l,--lib DIR             Path to the directory to use as the Nix library
+                           instead of the default one bundled with the snack
+                           executable.
+  -j,--cores INT           How many cores to use during the build
   -h,--help                Show this help text
 
 Available commands:
   build
   run
   ghci
+
+Unavailable commands:
+  test                     Use build, run or ghci commands with test suites.
 ```
+
+Snack can be used to build, run and interact with packages. There is no
+**test** command as we treat test suites as we do executables, giving each test
+suite its own package description.
 
 ## Usage
 
-You can use Hpack (for simple builds or if you already have a `package.yaml`)
-or Nix (if you need more control over your build).
+There are two ways to tell snack about a package;
+* Use [`--package-nix`](#nix) if you need more control over your build.
+* Use [`--package-yaml`](#hpack) for simple builds or if you already have
+  a `package.yaml` file.
+
+If a package option is not supplied then snack will run as if
+`--package-nix=package.nix` was given as the package option.
 
 The next two sections show an example config for each option. They use the
 following example project which displays the title of the top-rated post on the
@@ -206,22 +233,108 @@ in
 Building and running the project is as simple as
 
 ``` shell
-$ snack run # looks for a file called snack.nix by default
+$ snack run # looks for a file called package.nix by default
 ```
 
 Alternatively, use `$ snack build` or `$ snack ghci` if you only want to build,
 or fire up `ghci`, respectively.
 
-### Advanced Nix Example
+### Using other versions of GHC and nixpkgs
 
+The _snack_ executable comes with a [bundled version of
+nixpkgs](./nix/nixpkgs/nixpkgs-src.json) and uses the GHC executable provided
+by `haskell.packages.ghc822.ghcWithPackages`. You may override those default by
+providing a `snack.nix`:
+
+``` shell
+$ snack --snack-nix ./snack.nix build
+```
+
+This file looks like the following:
+
+
+``` nix
+rec {
+  # If you only wish to change the version of GHC being used, set
+  # `ghc-version`. The following versions are currently available:
+  #  * ghc7103
+  #  * ghc7103Binary
+  #  * ghc802
+  #  * ghc821Binary
+  #  * ghc822
+  #  * ghc841
+  #  * ghc842
+  #  * ghcHEAD
+  #  * ghcjs
+  #  * ghcjsHEAD
+  #  * integer-simple
+  # NOTE: not all versions have been tested with snack.
+  ghc-version = "ghc802";
+
+  # Alternatively you can provide you own `ghcWithPackages`, which should have
+  # the same structure as that provided by
+  # `pkgs.haskell.packages.<version>.ghcWithPackages:
+  ghcWithPackages = pkgs.haskellPackages.ghcWithPackages;
+
+  # Finally you can provide your own set of Nix packages, which should evaluate
+  # to an attribute set:
+  pkgs = import ./nix;
+}
+```
+
+### Advanced Nix Example
 
 You may want custom builds that involve things such as [archiving and base64
 encoding entire
 directories](https://github.com/nmattia/snack/blob/c8e9e2d5ddaba2e0aa3e6c68a26bdc1063d387f3/bin/snack.nix#L10).
 
-_snack_ builds itself, so its [`snack.nix`](./bin/snack.nix) is a good example
+_snack_ builds itself, so its [`package.nix`](./bin/package.nix) is a good example
 of an advanced configuration. You can also check out the [test
 folder](./tests).
+
+## Hacking
+
+There are two different components you can hack:
+
+* The snack executable in [`bin/Snack.hs`](./bin/Snack.hs)
+* The snack library in [`snack-lib/`](./snack-lib)
+
+Make sure you have a working version of snack installed, e.g.
+
+``` shell
+$ git co master
+$ nix-env -f ./default.nix -iA snack-exe
+```
+
+If you are hacking on the _snack_ executable, just start _snack_ in a GHCi
+session:
+
+``` shell
+$ snack ghci -s ./bin/package.nix
+Temporarily symlinking /nix/store/j1x5vkxjr2ibabddfkdih4sm4kwinfda-spec-json/spec.json to spec.json...
+done.
+Temporarily symlinking /nix/store/w42y6dzgfmli9r8kmgh8akqk6kyda31x-lib64/lib.tar.gz.b64 to lib.tar.gz.b64...
+done.
+GHCi, version 8.2.2: http://www.haskell.org/ghc/  :? for help
+[1 of 1] Compiling Main             ( /home/nicolas/projects/nmattia/snack/bin/Snack.hs, interpreted )
+Ok, one module loaded.
+*Main>
+```
+
+If you are hacking on the library, specify `-l/--lib` when running snack (this
+works in GHCi too):
+
+``` shell
+*Main> :main ghci -l ./snack-lib/ -s ./tests/readme/package.nix
+GHCi, version 8.2.2: http://www.haskell.org/ghc/  :? for help
+[1 of 2] Compiling Lib              ( /home/nicolas/projects/nmattia/snack/tests/readme/src/Lib.hs, interpreted )
+[2 of 2] Compiling Main             ( /home/nicolas/projects/nmattia/snack/tests/readme/app/Main.hs, interpreted )
+Ok, two modules loaded.
+*Main> :main
+"\"Category Theory for Programmers\" has been finished!"
+```
+
+> Mustn't be afraid to dream a little bigger, darling.
 
 ## Thanks
 

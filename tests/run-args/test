@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# vim: ft=sh sw=2 et
+
+set -euo pipefail
+
+test() {
+  $SNACK build
+  $SNACK run -- hello 'this is' 'the answer' bye | diff golden -
+}
+
+SNACK="snack -j4" test
