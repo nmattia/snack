@@ -40,7 +40,7 @@ let
   libraryModSpecs = pkgSpec:
     let
       moduleSpecFold' = modSpecFoldFromPackageSpec pkgSpec;
-      modNames = listModulesInDir pkgSpec.packageBase;
+      modNames = pkgs.lib.concatMap listModulesInDir pkgSpec.packageSourceDirs;
       fld = moduleSpecFold' modSpecs';
       modSpecs' = foldDAG fld modNames;
       modSpecs = builtins.attrValues modSpecs';
