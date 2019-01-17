@@ -36,14 +36,16 @@ in
         topExtensions = optAttr package "default-extensions" [];
         packageLib = withAttr package "library" null (component:
             { src =
-                let base = builtins.dirOf packageYaml;
+                let
+                  base = builtins.dirOf packageYaml;
+                  source-dirs = optAttr component "source-dirs" ".";
                 in
-                  if builtins.isList component.source-dirs
+                  if builtins.isList source-dirs
                   then builtins.map (sourceDir:
                     builtins.toPath "${builtins.toString base}/${sourceDir}"
-                    ) component.source-dirs
+                    ) source-dirs
                   else
-                    builtins.toPath "${builtins.toString base}/${component.source-dirs}";
+                    builtins.toPath "${builtins.toString base}/${source-dirs}";
               dependencies = topDeps ++ mkDeps component;
               extensions = topExtensions ++ (optAttr component "extensions" []);
             }
@@ -61,14 +63,16 @@ in
           in
             { main = fileToModule component.main;
               src =
-                let base = builtins.dirOf packageYaml;
+                let 
+                  base = builtins.dirOf packageYaml;
+                  source-dirs = optAttr component "source-dirs" ".";
                 in
-                  if builtins.isList component.source-dirs
+                  if builtins.isList source-dirs
                   then builtins.map (sourceDir:
                     builtins.toPath "${builtins.toString base}/${sourceDir}"
-                    ) component.source-dirs
+                    ) source-dirs
                   else
-                    builtins.toPath "${builtins.toString base}/${component.source-dirs}";
+                    builtins.toPath "${builtins.toString base}/${source-dirs}";
               dependencies = topDeps ++ dropVersionBounds depOrPack.wrong;
               extensions = topExtensions ++ (optAttr component "extensions" []);
             packages = map (_: packageLib) depOrPack.right;
