@@ -10,7 +10,7 @@ _snack_ is a build tool that uses the power of Nix to build Haskell projects.
 It will
 
   * use your existing [Hpack][hpack] file or a Nix-based config (described
-    [below](#nix)).
+    [below](#hpack)).
   * build your project incrementally: running `snack build` will only rebuild
     the modules that have been modified since the previous build.
   * work in the Nix sandbox.
