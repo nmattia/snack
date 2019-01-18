@@ -1,4 +1,5 @@
-{ nixpkgs ? import ./nixpkgs }:
+with { fetch = import ./fetch.nix; };
+{ nixpkgs ? fetch.nixpkgs }:
 import nixpkgs {
   config = { };
   overlays = [

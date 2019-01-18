@@ -1,5 +1,7 @@
 let
-  spec = builtins.fromJSON (builtins.readFile ../../../nix/nixpkgs/nixpkgs-src.json);
+  spec =
+    let versions = builtins.fromJSON (builtins.readFile ../../../nix/versions.json);
+    in versions.nixpkgs;
   nixpkgs =
         (builtins.fetchTarball
             { url = "https://github.com/${spec.owner}/${spec.repo}/archive/${spec.rev}.tar.gz";
