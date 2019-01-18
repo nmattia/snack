@@ -11,6 +11,7 @@ Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to
 - This CHANGELOG file to track changes to the command line and library APIs.
 - Support for custom GHC version, `ghcWithPackages` and `pkgs`.
 - Support for more than one directory in `src` (and HPack's `source-dirs`).
+- Allow empty `source-dirs` in `package.yaml`; defaults to `./.`
 
 ### Changed
 - The `snack run` function to accept arguments that will be passed to the built
