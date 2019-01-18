@@ -39,7 +39,6 @@ main = do
         Opts.execParser (Opts.info (parseOptions <**> Opts.helper) mempty)
     runCommand (snackConfig opts) (package opts) (command opts)
 
-
 -------------------------------------------------------------------------------
 -- Configuration
 -------------------------------------------------------------------------------
@@ -54,14 +53,53 @@ type family Config (c :: ConfigStage) ty1 ty2 where
   Config 'ConfigRaw ty1 _ = ty1
   Config 'ConfigReady _ ty2 = ty2
 
-
 --- Configuration proper
 
 -- | Like a FilePath, but Nix friendly
 newtype SnackNix = SnackNix FilePath
 
+data SnackNixConfig
+  = SnackNixSpecific FilePath
+  | SnackNixDiscovery
+  | SnackNixNone
+
+parseSnackNixConfig :: Opts.Parser SnackNixConfig
+parseSnackNixConfig =
+    SnackNixSpecific <$> Opts.strOption
+        (Opts.long "snack-nix"
+        <> Opts.short 's'
+        <> Opts.metavar "PATH"
+        <> Opts.help (unlines
+          [ "Use the specified environment (snack.nix) file."
+          , "When none is provided ./snack.nix is used (if it exists)."
+          , "(Use --no-snack-nix to disable this behavior)"
+          ])
+        ) <|>
+    Opts.flag'
+        SnackNixNone
+        (Opts.long "no-snack-nix"
+        <> Opts.help "Don't use ./snack.nix as the environment (snack.nix) file."
+        ) <|>
+    pure SnackNixDiscovery
+
+prepareSnackNix :: SnackNixConfig -> IO (Maybe SnackNix)
+prepareSnackNix = \case
+    SnackNixNone -> pure Nothing
+    SnackNixSpecific fp -> Just <$> mkSnackNix fp
+    SnackNixDiscovery -> discoverSnackNix
+
+discoverSnackNix :: IO (Maybe SnackNix)
+discoverSnackNix = do
+    eSNix <- mkSnackNixEither "snack.nix"
+    case eSNix of
+      Left{} -> pure Nothing
+      Right sn -> pure (Just sn)
+
 mkSnackNix :: FilePath -> IO SnackNix
 mkSnackNix = fmap SnackNix . mkFilePath
+
+mkSnackNixEither :: FilePath -> IO (Either String SnackNix)
+mkSnackNixEither fp = fmap SnackNix <$> mkFilePathEither fp
 
 -- | Like a FilePath, but Nix friendly
 newtype SnackLib = SnackLib FilePath
@@ -75,15 +113,15 @@ mkSnackLib = fmap SnackLib . mkDirPath
 newtype PackageFile = PackageFile { unPackageFile :: FilePath }
 
 -- | What package description (@package.yaml@, @package.nix@) to use
-data PackageConfig
-  = PackageSpecific FilePath
+data PackageFileConfig
+  = PackageFileSpecific FilePath
     -- ^ Use the specified file as package description
-  | PackageDiscovery
+  | PackageFileDiscovery
     -- ^ Find a suitable package description
 
-parsePackageConfig :: Opts.Parser PackageConfig
-parsePackageConfig =
-    (PackageSpecific <$>
+parsePackageFileConfig :: Opts.Parser PackageFileConfig
+parsePackageFileConfig =
+    (PackageFileSpecific <$>
         Opts.strOption
         (Opts.long "package-file"
         <> Opts.short 'p'
@@ -93,7 +131,7 @@ parsePackageConfig =
           ]
           )
         <> Opts.metavar "PATH")
-        ) <|> pure PackageDiscovery
+        ) <|> pure PackageFileDiscovery
 
 -- Finding the package descriptions
 
@@ -103,27 +141,30 @@ mkPackageFileEither = fmap (fmap PackageFile) . mkFilePathEither
 mkPackageFile :: FilePath -> IO PackageFile
 mkPackageFile = fmap PackageFile . mkFilePath
 
-preparePackage :: PackageConfig -> IO PackageFile
+preparePackage :: PackageFileConfig -> IO PackageFile
 preparePackage = \case
-    PackageSpecific fp -> mkPackageFile fp
-    PackageDiscovery -> discoverPackage
+    PackageFileSpecific fp -> mkPackageFile fp
+    PackageFileDiscovery -> discoverPackageFile
 
 -- | Tries to find a package description.
-discoverPackage :: IO PackageFile
-discoverPackage = do
+discoverPackageFile :: IO PackageFile
+discoverPackageFile = do
     eYaml <- mkPackageFileEither "package.yaml"
     eNix <- mkPackageFileEither "package.nix"
     case (eYaml, eNix) of
       (Right (PackageFile yaml), Right (PackageFile nix)) ->
         throwIO $ userError $ unlines
-          [ "Please specify which package file to use: "
-          , yaml, nix
+          [ "Please specify which package file to use, e.g.: "
+          , "  snack -p " <> yaml, "or"
+          , "  snack -p " <> nix
           ]
       (Right yaml, Left{}) -> pure yaml
       (Left{}, Right nix) -> pure nix
       (Left e1, Left e2) -> throwIO $ userError $ unlines
         [ "Could not discover package file:"
         , e1, e2
+        , "Please specify one with e.g.:"
+        , "  snack -p <path-to-yaml-or-nix>"
         ]
 
 --- Nix configuration
@@ -143,7 +184,6 @@ parseNixConfig =
         <> Opts.help "How many cores to use during the build")
         )
 
-
 --- Snack configuration (unrelated to packages)
 
 type SnackConfig = SnackConfig_ 'ConfigReady
@@ -152,7 +192,7 @@ type SnackConfigRaw = SnackConfig_ 'ConfigRaw
 -- | Extra configuration for snack
 data SnackConfig_ c = SnackConfig
   { snackLib :: Maybe (Config c FilePath SnackLib)
-  , snackNix :: Maybe (Config c FilePath SnackNix)
+  , snackNix :: Config c SnackNixConfig (Maybe SnackNix)
   , snackNixCfg :: NixConfig
   }
 
@@ -160,7 +200,7 @@ prepareSnackConfig :: SnackConfigRaw -> IO SnackConfig
 prepareSnackConfig raw =
     SnackConfig <$>
       forM (snackLib raw) mkSnackLib <*>
-      forM (snackNix raw) mkSnackNix <*>
+      prepareSnackNix (snackNix raw) <*>
       pure (snackNixCfg raw)
 
 parseSnackConfig :: Opts.Parser SnackConfigRaw
@@ -176,15 +216,8 @@ parseSnackConfig = SnackConfig <$> Opts.optional
             ]
           )
         )
-    ) <*>
-    Opts.optional (
-        Opts.strOption
-        (Opts.long "snack-nix"
-        <> Opts.short 'b'
-        <> Opts.metavar "PATH")
-        ) <*>
+    ) <*> parseSnackNixConfig <*>
     parseNixConfig
-
 
 -- | What command to execute
 data Command
@@ -213,7 +246,7 @@ type Options = Options_ 'ConfigReady
 -- | The whole set of CLI options
 data Options_ c = Options
   { snackConfig :: SnackConfig_ c
-  , package :: Config c PackageConfig PackageFile
+  , package :: Config c PackageFileConfig PackageFile
   , command :: Command
   }
 
@@ -228,7 +261,7 @@ parseOptions :: Opts.Parser OptionsRaw
 parseOptions =
     Options <$>
       parseSnackConfig <*>
-      parsePackageConfig <*>
+      parsePackageFileConfig <*>
       parseCommand
 
 --- Build related types used when interfacing with Nix
