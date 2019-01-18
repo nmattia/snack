@@ -1,0 +1,102 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -i bash -p bash nix curl jq --pure
+# vim: filetype=sh
+set -euo pipefail
+
+banner() {
+    echo
+    echo "--- $*"
+    echo
+}
+
+
+update() {
+    local versions="$1"
+    local package="$2"
+    echo "Versions file: $versions"
+    echo "Package to update: $package"
+    local owner=$(cat $versions | jq -r ".[\"$package\"].owner")
+    local repo=$(cat $versions | jq -r ".[\"$package\"].repo")
+    local branch=$(cat $versions | jq -r ".[\"$package\"].branch")
+    local rev=$(cat $versions | jq -r ".[\"$package\"].rev")
+    local sha256=$(cat $versions | jq -r ".[\"$package\"].sha256")
+
+    echo "Owner: $owner"
+    echo "Repository: $repo"
+    echo "Branch: $branch"
+
+
+    case "$PREFETCH_ONLY" in
+        TRUE)
+        local new_rev=$rev
+        echo "Using existing revision"
+        ;;
+        FALSE)
+        local new_rev=$(curl -sfL \
+            https://api.github.com/repos/$owner/$repo/git/refs/heads/$branch \
+            | jq -r .object.sha)
+        echo "Fetching latest revision on branch $branch"
+        ;;
+    esac
+    echo "The following revision will be used:"
+    echo "  $new_rev"
+
+    local url=https://github.com/$owner/$repo/archive/$new_rev.tar.gz
+    local new_sha256=$(nix-prefetch-url --unpack "$url")
+
+    echo "The following url will be used:"
+    echo "  $url"
+
+    echo "The following sha256 will be used:"
+    echo "  $new_sha256"
+
+    res=$(cat $versions \
+        | jq -rM ".[\"$package\"].rev = \"$new_rev\"" \
+        | jq -rM ".[\"$package\"].sha256 = \"$new_sha256\""
+        )
+
+    echo "New versions file:"
+    echo "$res"
+
+    echo "$res" > $versions
+}
+
+ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. >/dev/null && pwd )"
+VERSIONS_DEF="$ROOT/nix/versions.json"
+PACKAGES_DEF="$(cat $VERSIONS_DEF | jq -r 'keys | .[]')"
+
+VERSIONS="$VERSIONS_DEF"
+echo "Using versions file ${VERSIONS}"
+
+PREFETCH_ONLY="FALSE"
+PACKAGES=""
+
+
+while [[ $# -gt 0 ]]
+do
+key="$1"
+
+case $key in
+    --prefetch)
+    PREFETCH_ONLY="TRUE"
+    shift
+    ;;
+    *)
+    PACKAGES="$key $PACKAGES"
+    shift # past value
+    ;;
+esac
+done
+
+if [ -z "$PACKAGES" ];
+then
+    PACKAGES="$PACKAGES_DEF"
+fi
+
+echo "Using packages:"
+for p in $PACKAGES; do echo " - $p"; done
+
+for p in $PACKAGES; do
+    banner "$p"
+    update "$VERSIONS" "$p"
+done
