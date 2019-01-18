@@ -22,7 +22,7 @@ Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to
 - The same flag (`-p`) is used for specifying both a YAML or Nix file. When
   none is provided snack tries to use either `./package.yaml` or
   `./package.nix`.
-- The flag `s` is used to specify a `snack.nix`. By defaul `./snack.nix` is
+- The flag `-s` is used to specify a `snack.nix`. By default `./snack.nix` is
   used.
 
 ### Fixed
