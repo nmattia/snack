@@ -32,7 +32,18 @@ import qualified Data.Text as T
 import qualified Options.Applicative as Opts
 import qualified Shelly as S
 
----
+main :: IO ()
+main = do
+    opts <-
+      prepareOptions =<<
+        Opts.execParser (Opts.info (parseOptions <**> Opts.helper) mempty)
+    runCommand (snackConfig opts) (package opts) (command opts)
+
+
+-------------------------------------------------------------------------------
+-- Configuration
+-------------------------------------------------------------------------------
+
 --- Some config helpers
 
 data ConfigStage
@@ -43,19 +54,61 @@ type family Config (c :: ConfigStage) ty1 ty2 where
   Config 'ConfigRaw ty1 _ = ty1
   Config 'ConfigReady _ ty2 = ty2
 
----
+
 --- Configuration proper
 
+-- | Like a FilePath, but Nix friendly
+newtype SnackNix = SnackNix FilePath
+
+mkSnackNix :: FilePath -> IO SnackNix
+mkSnackNix = fmap SnackNix . mkFilePath
+
+-- | Like a FilePath, but Nix friendly
+newtype SnackLib = SnackLib FilePath
+
+mkSnackLib :: FilePath -> IO SnackLib
+mkSnackLib = fmap SnackLib . mkDirPath
+
+--- Package description (@package.yaml@, @package.nix@)
+
+-- | Like a FilePath, but Nix friendly
+newtype PackageFile = PackageFile { unPackageFile :: FilePath }
+
+-- | What package description (@package.yaml@, @package.nix@) to use
 data PackageConfig
   = PackageSpecific FilePath
+    -- ^ Use the specified file as package description
   | PackageDiscovery
-    -- ^ Reads a 'package.nix' or 'package.yaml'
+    -- ^ Find a suitable package description
+
+parsePackageConfig :: Opts.Parser PackageConfig
+parsePackageConfig =
+    (PackageSpecific <$>
+        Opts.strOption
+        (Opts.long "package-file"
+        <> Opts.short 'p'
+        <> Opts.help (unlines
+          [ "Specifies a YAML or Nix file to use as package description."
+          , "If not provided, snack looks for either 'package.yaml' or 'package.nix' in the current directory."
+          ]
+          )
+        <> Opts.metavar "PATH")
+        ) <|> pure PackageDiscovery
+
+-- Finding the package descriptions
+
+mkPackageFileEither :: FilePath -> IO (Either String PackageFile)
+mkPackageFileEither = fmap (fmap PackageFile) . mkFilePathEither
+
+mkPackageFile :: FilePath -> IO PackageFile
+mkPackageFile = fmap PackageFile . mkFilePath
 
 preparePackage :: PackageConfig -> IO PackageFile
 preparePackage = \case
     PackageSpecific fp -> mkPackageFile fp
     PackageDiscovery -> discoverPackage
 
+-- | Tries to find a package description.
 discoverPackage :: IO PackageFile
 discoverPackage = do
     eYaml <- mkPackageFileEither "package.yaml"
@@ -73,94 +126,11 @@ discoverPackage = do
         , e1, e2
         ]
 
--- | Like a FilePath, but Nix friendly
-newtype SnackNix = SnackNix FilePath
-
-mkSnackNix :: FilePath -> IO SnackNix
-mkSnackNix = fmap SnackNix . mkFilePath
-
--- | Like a FilePath, but Nix friendly
-newtype SnackLib = SnackLib FilePath
-
-mkSnackLib :: FilePath -> IO SnackLib
-mkSnackLib = fmap SnackLib . mkDirPath
-
--- | Like a FilePath, but Nix friendly
-newtype PackageFile = PackageFile { unPackageFile :: FilePath }
-
-mkPackageFileEither :: FilePath -> IO (Either String PackageFile)
-mkPackageFileEither = fmap (fmap PackageFile) . mkFilePathEither
-
-mkPackageFile :: FilePath -> IO PackageFile
-mkPackageFile = fmap PackageFile . mkFilePath
-
-mkDirPath :: FilePath -> IO FilePath
-mkDirPath fp = doesPathExist fp >>= \case
-    True -> doesFileExist fp >>= \case
-      True -> throwIO $ userError $ fp <> " is a file"
-      False -> canonicalizePath fp
-    False -> throwIO $ userError $ fp <> " does not exist"
-
-mkFilePathEither :: FilePath -> IO (Either String FilePath)
-mkFilePathEither fp = doesFileExist fp >>= \case
-    True -> Right <$> canonicalizePath fp
-    False -> doesPathExist fp >>= \case
-      True -> pure (Left (fp <> " is a directory"))
-      False -> pure (Left (fp <> " does not exist"))
-
-mkFilePath :: FilePath -> IO FilePath
-mkFilePath fp =
-    mkFilePathEither fp >>= either (throwIO . userError) pure
+--- Nix configuration
 
 -- | How to call @nix-build@
 newtype NixConfig = NixConfig
   { nixNCores :: Int }
-
-type SnackConfig = SnackConfig_ 'ConfigReady
-type SnackConfigRaw = SnackConfig_ 'ConfigRaw
-
--- | Extra configuration for snack
-data SnackConfig_ c = SnackConfig
-  { snackLib :: Maybe (Config c FilePath SnackLib)
-  , snackNix :: Maybe (Config c FilePath SnackNix)
-  , snackNixCfg :: NixConfig
-  }
-
-data Command
-  = Build
-  | Run [String] -- Run with extra args
-  | Ghci
-  | Test
-
-main :: IO ()
-main = do
-    opts <-
-      prepareOptions =<<
-        Opts.execParser (Opts.info (parseOptions <**> Opts.helper) mempty)
-    runCommand (snackConfig opts) (mode opts) (command opts)
-
-type OptionsRaw = Options_ 'ConfigRaw
-type Options = Options_ 'ConfigReady
-
-data Options_ c = Options
-  { snackConfig :: SnackConfig_ c
-  , mode :: Config c PackageConfig PackageFile
-  , command :: Command
-  }
-
-prepareOptions :: OptionsRaw -> IO Options
-prepareOptions raw =
-    Options <$>
-      prepareSnackConfig (snackConfig raw) <*>
-      preparePackage (mode raw) <*>
-      pure (command raw)
-
-prepareSnackConfig :: SnackConfigRaw -> IO SnackConfig
-prepareSnackConfig raw =
-    SnackConfig <$>
-      forM (snackLib raw) mkSnackLib <*>
-      forM (snackNix raw) mkSnackNix <*>
-      pure (snackNixCfg raw)
 
 parseNixConfig :: Opts.Parser NixConfig
 parseNixConfig =
@@ -172,6 +142,26 @@ parseNixConfig =
         <> Opts.metavar "INT"
         <> Opts.help "How many cores to use during the build")
         )
+
+
+--- Snack configuration (unrelated to packages)
+
+type SnackConfig = SnackConfig_ 'ConfigReady
+type SnackConfigRaw = SnackConfig_ 'ConfigRaw
+
+-- | Extra configuration for snack
+data SnackConfig_ c = SnackConfig
+  { snackLib :: Maybe (Config c FilePath SnackLib)
+  , snackNix :: Maybe (Config c FilePath SnackNix)
+  , snackNixCfg :: NixConfig
+  }
+
+prepareSnackConfig :: SnackConfigRaw -> IO SnackConfig
+prepareSnackConfig raw =
+    SnackConfig <$>
+      forM (snackLib raw) mkSnackLib <*>
+      forM (snackNix raw) mkSnackNix <*>
+      pure (snackNixCfg raw)
 
 parseSnackConfig :: Opts.Parser SnackConfigRaw
 parseSnackConfig = SnackConfig <$> Opts.optional
@@ -195,15 +185,44 @@ parseSnackConfig = SnackConfig <$> Opts.optional
         ) <*>
     parseNixConfig
 
-parsePackageConfig :: Opts.Parser PackageConfig
-parsePackageConfig =
-    (PackageSpecific <$>
-        Opts.strOption
-        (Opts.long "package-file"
-        <> Opts.short 'p'
-        -- TODO: description
-        <> Opts.metavar "PATH")
-        ) <|> pure PackageDiscovery
+
+-- | What command to execute
+data Command
+  = Build
+  | Run [String] -- Run with extra args
+  | Ghci
+  | Test
+
+parseCommand :: Opts.Parser Command
+parseCommand =
+  Opts.hsubparser
+    ( Opts.command "build" (Opts.info (pure Build) mempty)
+    <>  Opts.command "run" (Opts.info
+        ( Run <$> Opts.many (Opts.argument Opts.str (Opts.metavar "ARG"))
+        ) mempty)
+    <>  Opts.command "ghci" (Opts.info (pure Ghci) mempty)
+    )
+    <|> Opts.hsubparser
+    ( Opts.command "test" (Opts.info (pure Test) (Opts.progDesc "Use build, run or ghci commands with test suites."))
+    <> Opts.commandGroup "Unavailable commands:"
+    )
+
+type OptionsRaw = Options_ 'ConfigRaw
+type Options = Options_ 'ConfigReady
+
+-- | The whole set of CLI options
+data Options_ c = Options
+  { snackConfig :: SnackConfig_ c
+  , package :: Config c PackageConfig PackageFile
+  , command :: Command
+  }
+
+prepareOptions :: OptionsRaw -> IO Options
+prepareOptions raw =
+    Options <$>
+      prepareSnackConfig (snackConfig raw) <*>
+      preparePackage (package raw) <*>
+      pure (command raw)
 
 parseOptions :: Opts.Parser OptionsRaw
 parseOptions =
@@ -211,6 +230,8 @@ parseOptions =
       parseSnackConfig <*>
       parsePackageConfig <*>
       parseCommand
+
+--- Build related types used when interfacing with Nix
 
 newtype ModuleName = ModuleName T.Text
   deriving newtype (Ord, Eq, Aeson.FromJSONKey)
@@ -267,6 +288,8 @@ instance Aeson.FromJSON MultiBuild where
   parseJSON = Aeson.withObject "multi build" $ \o ->
     MultiBuild <$> o .: "executables"
 
+--- Type-helpers for passing arguments to Nix
+
 data NixArg = NixArg
   { argType :: NixArgType
   , argName :: T.Text
@@ -282,12 +305,6 @@ newtype NixExpr = NixExpr { unNixExpr :: T.Text }
 newtype NixPath = NixPath T.Text
   deriving newtype FromJSON
   deriving stock Show
-
-decodeOrFail :: FromJSON a => BS.ByteString -> Sh a
-decodeOrFail bs = case Aeson.decodeStrict' bs of
-    Just foo -> pure foo
-    Nothing -> throwIO $ userError $ unlines
-      [ "could not decode " <> show bs ]
 
 nixBuild :: SnackConfig -> [NixArg] -> NixExpr -> Sh NixPath
 nixBuild snackCfg extraNixArgs nixExpr =
@@ -403,29 +420,46 @@ runBuildResult args = \case
           runExe exe args
     b -> fail $ "Unexpected build type: " <> show b
 
-quiet :: Sh a -> IO a
-quiet = S.shelly . S.print_stdout False
-
 runExe :: NixPath -> [String] -> IO ()
 runExe (NixPath fp) args = executeFile (T.unpack fp) True args Nothing
 
-parseCommand :: Opts.Parser Command
-parseCommand =
-  Opts.hsubparser
-    ( Opts.command "build" (Opts.info (pure Build) mempty)
-    <>  Opts.command "run" (Opts.info
-        ( Run <$> Opts.many (Opts.argument Opts.str (Opts.metavar "ARG"))
-        ) mempty)
-    <>  Opts.command "ghci" (Opts.info (pure Ghci) mempty)
-    )
-    <|> Opts.hsubparser
-    ( Opts.command "test" (Opts.info (pure Test) (Opts.progDesc "Use build, run or ghci commands with test suites."))
-    <> Opts.commandGroup "Unavailable commands:"
-    )
+specJson :: T.Text
+specJson = $(embedStringFile "spec.json")
 
+libb64 :: T.Text
+libb64 = $(embedStringFile "lib.tar.gz.b64")
+
+--- Auxiliary
+
+mkDirPath :: FilePath -> IO FilePath
+mkDirPath fp = doesPathExist fp >>= \case
+    True -> doesFileExist fp >>= \case
+      True -> throwIO $ userError $ fp <> " is a file"
+      False -> canonicalizePath fp
+    False -> throwIO $ userError $ fp <> " does not exist"
+
+mkFilePath :: FilePath -> IO FilePath
+mkFilePath fp =
+    mkFilePathEither fp >>= either (throwIO . userError) pure
+
+mkFilePathEither :: FilePath -> IO (Either String FilePath)
+mkFilePathEither fp = doesFileExist fp >>= \case
+    True -> Right <$> canonicalizePath fp
+    False -> doesPathExist fp >>= \case
+      True -> pure (Left (fp <> " is a directory"))
+      False -> pure (Left (fp <> " does not exist"))
+
+decodeOrFail :: FromJSON a => BS.ByteString -> Sh a
+decodeOrFail bs = case Aeson.decodeStrict' bs of
+    Just foo -> pure foo
+    Nothing -> throwIO $ userError $ unlines
+      [ "could not decode " <> show bs ]
+
+-- | Run the executable with given arguments
 run :: S.FilePath -> [T.Text] -> Sh [T.Text]
 run p args = T.lines <$> S.run p args
 
+-- | Run the executable with given arguments, assuming a single line of output
 runStdin1 :: T.Text -> S.FilePath -> [T.Text] -> Sh T.Text
 runStdin1 stin p args = do
     S.setStdin stin
@@ -433,8 +467,5 @@ runStdin1 stin p args = do
       [out] -> pure out
       xs -> throwIO $ userError $ "unexpected output: " <> show xs
 
-specJson :: T.Text
-specJson = $(embedStringFile "spec.json")
-
-libb64 :: T.Text
-libb64 = $(embedStringFile "lib.tar.gz.b64")
+quiet :: Sh a -> IO a
+quiet = S.shelly . S.print_stdout False
