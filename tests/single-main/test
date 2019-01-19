@@ -8,4 +8,4 @@ test() {
   $SNACK run
 }
 
-SNACK="snack -j4 --package-yaml ./package.yaml" test
+SNACK="snack -j4" test

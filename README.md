@@ -81,14 +81,24 @@ The _snack_ executable is now in your `PATH`:
 
 ``` shell
 $ snack --help
-Usage: snack [-l|--lib DIR] [-b|--snack-nix PATH] [-j|--cores INT]
-             ([-s|--package-nix PATH] | [-p|--package-yaml PATH]) COMMAND
+Usage: <interactive> [-l|--lib DIR] ([-s|--snack-nix PATH] | [--no-snack-nix])
+                     [-j|--cores INT] [-p|--package-file PATH] (COMMAND |
+                     COMMAND)
 
 Available options:
   -l,--lib DIR             Path to the directory to use as the Nix library
                            instead of the default one bundled with the snack
                            executable.
+  -s,--snack-nix PATH      Use the specified environment (snack.nix) file. When
+                           none is provided ./snack.nix is used (if it exists).
+                           (Use --no-snack-nix to disable this behavior)
+  --no-snack-nix           Don't use ./snack.nix as the environment (snack.nix)
+                           file.
   -j,--cores INT           How many cores to use during the build
+  -p,--package-file PATH   Specifies a YAML or Nix file to use as package
+                           description. If not provided, snack looks for either
+                           'package.yaml' or 'package.nix' in the current
+                           directory.
   -h,--help                Show this help text
 
 Available commands:
@@ -106,13 +116,10 @@ suite its own package description.
 
 ## Usage
 
-There are two ways to tell snack about a package;
-* Use [`--package-nix`](#nix) if you need more control over your build.
-* Use [`--package-yaml`](#hpack) for simple builds or if you already have
+There are two ways to describe a package:
+* Use [`package.yaml` file](#hpack) for simple builds or if you already have
   a `package.yaml` file.
-
-If a package option is not supplied then snack will run as if
-`--package-nix=package.nix` was given as the package option.
+* Use a [`package.nix` file](#nix) if you need more control over your build.
 
 The next two sections show an example config for each option. They use the
 following example project which displays the title of the top-rated post on the
@@ -190,19 +197,19 @@ default-extensions:
 This command will build the project and display the top-rated post's title:
 
 ``` shell
-$ snack run --package-yaml ./package.yaml
+$ snack run
 ```
 
 You can also build without executing:
 
 ``` shell
-$ snack build --package-yaml ./package.yaml
+$ snack build
 ```
 
 Alternatively you can load up the project in `ghci`:
 
 ``` shell
-$ snack ghci --package-yaml ./package.yaml
+$ snack ghci
 GHCi, version 8.2.2: http://www.haskell.org/ghc/  :? for help
 [1 of 2] Compiling Lib              ( /home/nicolas/projects/nmattia/snack/tests/readme/src/Lib.hs, interpreted )
 [2 of 2] Compiling Main             ( /home/nicolas/projects/nmattia/snack/tests/readme/app/Main.hs, interpreted )
@@ -233,7 +240,7 @@ in
 Building and running the project is as simple as
 
 ``` shell
-$ snack run # looks for a file called package.nix by default
+$ snack run
 ```
 
 Alternatively, use `$ snack build` or `$ snack ghci` if you only want to build,
@@ -310,7 +317,7 @@ If you are hacking on the _snack_ executable, just start _snack_ in a GHCi
 session:
 
 ``` shell
-$ snack ghci -s ./bin/package.nix
+$ snack ghci -p ./bin/package.nix
 Temporarily symlinking /nix/store/j1x5vkxjr2ibabddfkdih4sm4kwinfda-spec-json/spec.json to spec.json...
 done.
 Temporarily symlinking /nix/store/w42y6dzgfmli9r8kmgh8akqk6kyda31x-lib64/lib.tar.gz.b64 to lib.tar.gz.b64...
@@ -325,7 +332,7 @@ If you are hacking on the library, specify `-l/--lib` when running snack (this
 works in GHCi too):
 
 ``` shell
-*Main> :main ghci -l ./snack-lib/ -s ./tests/readme/package.nix
+*Main> :main ghci -l ./snack-lib/ -p ./tests/readme/package.nix
 GHCi, version 8.2.2: http://www.haskell.org/ghc/  :? for help
 [1 of 2] Compiling Lib              ( /home/nicolas/projects/nmattia/snack/tests/readme/src/Lib.hs, interpreted )
 [2 of 2] Compiling Main             ( /home/nicolas/projects/nmattia/snack/tests/readme/app/Main.hs, interpreted )

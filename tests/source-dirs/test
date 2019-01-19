@@ -16,10 +16,5 @@ test() {
 }
 
 
-SNACK="snack -j4" test
-
-# TODO: Fix cannot coerce a list to a string, at /...-snack-lib/files.nix:66:12
-SNACK="snack -j4 -s ./package.nix" test
-
-# TODO: Fix cannot coerce a list to a string, at /...-snack-lib/hpack.nix:60:37
-SNACK="snack -j4 --package-yaml ./package.yaml" test
+SNACK="snack -j4 -p ./package.nix" test
+SNACK="snack -j4 -p ./package.yaml" test
