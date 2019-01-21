@@ -25,6 +25,7 @@ Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to
 - The flag `-s` is used to specify a `snack.nix`. By default `./snack.nix` is
   used.
 - The `--cores` was replaced with `--jobs`
+- The default GHC version is now 8.4.4.
 
 ### Fixed
 - The module import parsing when the CPP extension is enabled.
