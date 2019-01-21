@@ -171,17 +171,17 @@ discoverPackageFile = do
 
 -- | How to call @nix-build@
 newtype NixConfig = NixConfig
-  { nixNCores :: Int }
+  { nixNJobs :: Int }
 
 parseNixConfig :: Opts.Parser NixConfig
 parseNixConfig =
     (NixConfig <$>
         Opts.option Opts.auto
-        (Opts.long "cores"
+        (Opts.long "jobs"
         <> Opts.short 'j'
         <> Opts.value 1
         <> Opts.metavar "INT"
-        <> Opts.help "How many cores to use during the build")
+        <> Opts.help "How many jobs to run concurrently")
         )
 
 --- Snack configuration (unrelated to packages)
@@ -390,8 +390,8 @@ nixBuild snackCfg extraNixArgs nixExpr =
     cliArgs =
       [ "-" -- read expression from stdin
       , "--no-out-link" -- no need for roots
-      -- how many cores to use (-j)
-      , "--cores", T.pack (show (nixNCores nixCfg))
+      -- how many jobs to run concurrently (-j)
+      , "--max-jobs", T.pack (show (nixNJobs nixCfg))
       ] <> (concatMap toCliArgs nixArgs)
     funArgs :: [String]
     funArgs = toFunArg <$> nixArgs
