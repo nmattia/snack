@@ -1,11 +1,15 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MagicHash #-}
 
 module Main (main) where
 
 import Control.Monad.IO.Class
 import Data.List (stripPrefix)
+#if __GLASGOW_HASKELL__ >= 804
+#else
 import Data.Semigroup
+#endif
 import System.Environment
 import Control.Exception
 import qualified DriverPipeline
@@ -68,7 +72,11 @@ main = do
 
         runParser fp2 str Parser.parseModule >>= \case
           Lexer.POk _ (SrcLoc.L _ res) -> pure res
+#if __GLASGOW_HASKELL__ >= 804
+          Lexer.PFailed _ spn e -> liftIO $ do
+#else
           Lexer.PFailed spn e -> liftIO $ do
+#endif
             Handle.hPutStrLn stderr $ unlines
               [ "Could not parse module: "
               , fp2
