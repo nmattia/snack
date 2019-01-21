@@ -8,4 +8,4 @@ test() {
   $SNACK run -- hello 'this is' 'the answer' bye | diff golden -
 }
 
-SNACK="snack -j4" test
+SNACK="snack" test

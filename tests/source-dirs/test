@@ -16,5 +16,5 @@ test() {
 }
 
 
-SNACK="snack -j4 -p ./package.nix" test
-SNACK="snack -j4 -p ./package.yaml" test
+SNACK="snack -p ./package.nix" test
+SNACK="snack -p ./package.yaml" test
