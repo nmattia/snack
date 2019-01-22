@@ -24,6 +24,7 @@ Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to
   `./package.nix`.
 - The flag `-s` is used to specify a `snack.nix`. By default `./snack.nix` is
   used.
+- The `--cores` was replaced with `--jobs`
 
 ### Fixed
 - The module import parsing when the CPP extension is enabled.

@@ -82,7 +82,7 @@ The _snack_ executable is now in your `PATH`:
 ``` shell
 $ snack --help
 Usage: <interactive> [-l|--lib DIR] ([-s|--snack-nix PATH] | [--no-snack-nix])
-                     [-j|--cores INT] [-p|--package-file PATH] (COMMAND |
+                     [-j|--jobs INT] [-p|--package-file PATH] (COMMAND |
                      COMMAND)
 
 Available options:
@@ -94,7 +94,7 @@ Available options:
                            (Use --no-snack-nix to disable this behavior)
   --no-snack-nix           Don't use ./snack.nix as the environment (snack.nix)
                            file.
-  -j,--cores INT           How many cores to use during the build
+  -j,--jobs INT            How many jobs to run concurrently
   -p,--package-file PATH   Specifies a YAML or Nix file to use as package
                            description. If not provided, snack looks for either
                            'package.yaml' or 'package.nix' in the current

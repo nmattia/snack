@@ -15,7 +15,7 @@ test() {
   rm $TMP_FILE
 }
 
-SNACK="snack -j4" test
-SNACK="snack -j4 --package-file ./package.nix" test
-SNACK="snack -j4 --package-file ./package.nix -l ../../snack-lib" test
+SNACK="snack" test
+SNACK="snack --package-file ./package.nix" test
+SNACK="snack --package-file ./package.nix -l ../../snack-lib" test
 # Note: no HPack test, because HPack doesn't support multi library
