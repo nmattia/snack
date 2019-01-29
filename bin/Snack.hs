@@ -18,6 +18,7 @@ import Control.Monad.IO.Class
 import Data.Aeson (FromJSON, (.:))
 import Data.FileEmbed (embedStringFile)
 import Data.List (intercalate)
+import Data.Maybe (mapMaybe)
 import Data.Semigroup ((<>))
 import Data.String.Interpolate
 import Shelly (Sh)
@@ -283,7 +284,6 @@ newtype ModuleName = ModuleName T.Text
 data BuildResult
   = BuiltLibrary LibraryBuild
   | BuiltExecutable ExecutableBuild
-  | BuiltMulti MultiBuild
   | BuiltGhci GhciBuild
   deriving Show
 
@@ -291,7 +291,6 @@ instance Aeson.FromJSON BuildResult where
     parseJSON v =
       BuiltLibrary <$> (guardBuildType "library" v)
       <|> BuiltExecutable <$> (guardBuildType "executable" v)
-      <|> BuiltMulti <$> (guardBuildType "multi" v)
       <|> BuiltGhci <$> (guardBuildType "ghci" v)
       where
         guardBuildType :: FromJSON a => T.Text -> Aeson.Value -> Aeson.Parser a
@@ -304,10 +303,7 @@ newtype GhciBuild = GhciBuild
   { ghciExePath :: NixPath
   }
     deriving stock Show
-
-instance FromJSON GhciBuild where
-  parseJSON = Aeson.withObject "ghci build" $ \o ->
-    GhciBuild <$> o .: "ghci_path"
+    deriving newtype FromJSON
 
 -- The kinds of builds: library, executable, or a mix of both (currently only
 -- for HPack)
@@ -321,17 +317,6 @@ newtype ExecutableBuild = ExecutableBuild NixPath
 instance FromJSON ExecutableBuild where
   parseJSON = Aeson.withObject "executable build" $ \o ->
     ExecutableBuild <$> o .: "exe_path"
-
-newtype MultiBuild = MultiBuild
-  { executableBuilds :: Map.Map T.Text ExecutableBuild
-  }
-  deriving stock Show
-
-instance Aeson.FromJSON MultiBuild where
-  parseJSON = Aeson.withObject "multi build" $ \o ->
-    MultiBuild <$> o .: "executables"
-
---- Type-helpers for passing arguments to Nix
 
 data NixArg = NixArg
   { argType :: NixArgType
@@ -418,7 +403,7 @@ nixBuild snackCfg extraNixArgs nixExpr =
       : [ argName narg , argValue narg ]
     nixCfg = snackNixCfg snackCfg
 
-snackBuild :: SnackConfig -> PackageFile -> Sh BuildResult
+snackBuild :: SnackConfig -> PackageFile -> Sh [BuildResult]
 snackBuild snackCfg packageFile = do
     NixPath out <- nixBuild snackCfg
       [ NixArg
@@ -441,8 +426,9 @@ snackGhci snackCfg packageFile = do
       ]
       $ NixExpr "snack.inferGhci packageFile"
     liftIO (BS.readFile (T.unpack out)) >>= decodeOrFail >>= \case
-      BuiltGhci g -> pure g
-      b -> throwIO $ userError $ "Expected GHCi build, got " <> show b
+      -- TODO: shouldn't be dropping the tail
+      (BuiltGhci g):_ -> pure g
+      bs -> throwIO $ userError $ "Expected GHCi build, got " <> show bs
 
 runCommand :: SnackConfig -> PackageFile -> Command -> IO ()
 runCommand snackCfg packageFile = \case
@@ -455,13 +441,13 @@ runCommand snackCfg packageFile = \case
 noTest :: IO a
 noTest = fail "There is no test command for test suites"
 
-runBuildResult :: [String] -> BuildResult -> IO ()
-runBuildResult args = \case
-    BuiltExecutable (ExecutableBuild p) -> runExe p args
-    BuiltMulti b
-      | [ExecutableBuild exe] <- Map.elems (executableBuilds b) ->
-          runExe exe args
-    b -> fail $ "Unexpected build type: " <> show b
+runBuildResult :: [String] -> [BuildResult] -> IO ()
+runBuildResult args res =
+    case mapMaybe (\case {BuiltExecutable e -> Just e; _ -> Nothing}) res of
+      [ExecutableBuild p] -> runExe p args
+      -- TODO: be more graceful here
+      -- TODO: allow 'snack run my-exe -- ...'
+      _ -> fail $ "Expected exactly one executable, got: " <> show res
 
 runExe :: NixPath -> [String] -> IO ()
 runExe (NixPath fp) args = executeFile (T.unpack fp) True args Nothing

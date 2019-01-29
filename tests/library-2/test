@@ -6,7 +6,7 @@ set -euo pipefail
 test() {
   TMP_FILE=$(mktemp)
 
-  cat $($SNACK build) | jq -M '.result | keys' > $TMP_FILE
+  cat $($SNACK build) | jq -M '.[0] | .result | keys' > $TMP_FILE
 
   diff golden.jq $TMP_FILE
 

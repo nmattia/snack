@@ -52,9 +52,9 @@ in
           );
 
         exes =
-          withAttr package "executables" {} (lib.mapAttrs (k: v: mkExe v)) //
-          withAttr package "executable" {} (comp: { ${package.name} = mkExe comp; });
-        mkExe = component:
+          withAttr package "executables" [] (lib.mapAttrsToList (k: v: mkExe k v)) ++
+          withAttr package "executable" [] (comp: [(mkExe package.name comp)] );
+        mkExe = nn: component:
           let
             depOrPack =
               lib.lists.partition
@@ -62,8 +62,9 @@ in
                 (optAttr component "dependencies" []);
           in
             { main = fileToModule component.main;
+              name = nn;
               src =
-                let 
+                let
                   base = builtins.dirOf packageYaml;
                   source-dirs = optAttr component "source-dirs" ".";
                 in

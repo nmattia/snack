@@ -8,7 +8,8 @@ rec {
 
   mkPackageSpec =
   packageDescr@
-    { src
+    { src ? []
+    , name ? null
     , main ? null
     , ghcOpts ? []
     , dependencies ? []
@@ -17,7 +18,9 @@ rec {
     , extra-directories ? []
     , packages ? []
     }:
-    { packageMain = main;
+    { packageIsExe = ! builtins.isNull main;
+      packageName = name;
+      packageMain = main;
       packageSourceDirs =
         if builtins.isList src
         then src
