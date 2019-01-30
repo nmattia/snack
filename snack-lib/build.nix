@@ -27,15 +27,19 @@ rec {
   buildLibrary = ghcWith: modSpecs:
     buildModulesRec ghcWith {} modSpecs;
 
-  linkMainModule = ghcWith: mod: # main module
+  linkMainModule =
+      { ghcWith
+      , moduleSpec # The module to build
+      , name # The name to give the executable
+      }:
     let
-      objAttrs = buildMain ghcWith mod;
+      objAttrs = buildMain ghcWith moduleSpec;
       objList = lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
-      deps = allTransitiveDeps [mod];
+      deps = allTransitiveDeps [moduleSpec];
       ghc = ghcWith deps;
-      ghcOptsArgs = lib.strings.escapeShellArgs mod.moduleGhcOpts;
+      ghcOptsArgs = lib.strings.escapeShellArgs moduleSpec.moduleGhcOpts;
       packageList = map (p: "-package ${p}") deps;
-      relExePath = "bin/${lib.strings.toLower mod.moduleName}";
+      relExePath = "bin/${name}";
       drv = runCommand "linker" {}
         ''
           mkdir -p $out/bin

@@ -41,7 +41,10 @@ let
     buildLibrary ghcWith (libraryModSpecs pkgSpec);
 
   buildAsExecutable = pkgSpec:
-    let drv = linkMainModule ghcWith (executableMainModSpec pkgSpec);
+    let
+      moduleSpec = executableMainModSpec pkgSpec;
+      name = pkgSpec.packageName;
+      drv = linkMainModule { inherit moduleSpec name ghcWith; };
     in
       { out = drv.out;
         exe_path = "${drv.out}/${drv.relExePath}";
