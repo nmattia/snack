@@ -18,8 +18,16 @@ rec {
     , extra-directories ? []
     , packages ? []
     }:
+    with
+    rec {
+      isExe = ! builtins.isNull main;
+      pName =
+        if isExe && builtins.isNull name
+        then lib.strings.toLower main
+        else name;
+    };
     { packageIsExe = ! builtins.isNull main;
-      packageName = name;
+      packageName = pName;
       packageMain = main;
       packageSourceDirs =
         if builtins.isList src
