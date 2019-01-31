@@ -34,6 +34,7 @@ in
         mkDeps = obj: dropVersionBounds (optAttr obj "dependencies" []);
         topDeps = mkDeps package;
         topExtensions = optAttr package "default-extensions" [];
+        topGhcOpts = optAttr package "ghc-options" [];
         packageLib = withAttr package "library" null (component:
             { src =
                 let
@@ -48,6 +49,7 @@ in
                     builtins.toPath "${builtins.toString base}/${source-dirs}";
               dependencies = topDeps ++ mkDeps component;
               extensions = topExtensions ++ (optAttr component "extensions" []);
+              ghcOpts = topGhcOpts ++ (optAttr component "ghc-options" []);
             }
           );
 
@@ -76,7 +78,8 @@ in
                     builtins.toPath "${builtins.toString base}/${source-dirs}";
               dependencies = topDeps ++ dropVersionBounds depOrPack.wrong;
               extensions = topExtensions ++ (optAttr component "extensions" []);
-            packages = map (_: packageLib) depOrPack.right;
+              ghcOpts = topGhcOpts ++ (optAttr component "ghc-options" []);
+              packages = map (_: packageLib) depOrPack.right;
             };
     in
       { library = packageLib;
