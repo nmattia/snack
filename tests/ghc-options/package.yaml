@@ -1,0 +1,9 @@
+name: snack-extensions-test
+
+ghc-options:
+    - -XOverloadedStrings
+dependencies:
+    - text
+executable:
+    main: Main.hs
+    source-dirs: .
