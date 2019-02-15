@@ -40,7 +40,7 @@ rec {
       ghcOptsArgs = lib.strings.escapeShellArgs moduleSpec.moduleGhcOpts;
       packageList = map (p: "-package ${p}") deps;
       relExePath = "bin/${name}";
-      drv = runCommand "linker" {}
+      drv = runCommand name {}
         ''
           mkdir -p $out/bin
           ${ghc}/bin/ghc \
