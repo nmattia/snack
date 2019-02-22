@@ -1,6 +1,6 @@
-let pkgs = import ./nix {}; in
+with { pkgs = import ./nix {}; };
 {
-  inherit (pkgs)
+  inherit (pkgs.packages)
     snack-lib
     snack-exe
     ;

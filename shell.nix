@@ -1,5 +1,4 @@
-{ pkgs ? import ./nix {} }:
-with pkgs;
-mkShell {
-  buildInputs = [ snack-exe nix ];
+with { pkgs = import ./nix {}; };
+pkgs.mkShell {
+  buildInputs = [ pkgs.packages.snack-exe pkgs.nix ];
 }
