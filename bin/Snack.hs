@@ -358,10 +358,7 @@ nixBuild snackCfg extraNixArgs nixExpr =
         [i|
         { pkgs = import
             (
-            builtins.fetchTarball
-               { url = "https://github.com/${spec.owner}/${spec.repo}/archive/${spec.rev}.tar.gz";
-                 sha256 = spec.sha256;
-               }
+            builtins.fetchTarball { inherit (spec) url sha256; }
             ) {} ;
         }
         |]

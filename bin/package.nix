@@ -2,10 +2,7 @@ let
   pkgs = import ../nix {};
   specJson = pkgs.writeTextFile
     { name = "spec-json";
-      text =
-        let
-          versions = builtins.fromJSON (builtins.readFile ../nix/versions.json);
-        in builtins.toJSON versions.nixpkgs;
+      text = builtins.toJSON { inherit (pkgs.sources.nixpkgs) sha256 url; } ;
       destination = "/spec.json";
     };
   lib64 = pkgs.runCommand "lib64" {}

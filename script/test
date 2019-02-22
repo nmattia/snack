@@ -5,7 +5,7 @@
 #!nix-shell -p jq
 #!nix-shell -p nix
 #!nix-shell -p shfmt
-#!nix-shell -p snack-exe
+#!nix-shell -p packages.snack-exe
 #!nix-shell -p glibcLocales
 #!nix-shell --pure
 # vim: ft=sh sw=2 et
