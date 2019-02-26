@@ -18,8 +18,7 @@ rec {
       ghcOpts = allTransitiveGhcOpts modSpecs
         ++ (map (x: "-X${x}") (allTransitiveExtensions modSpecs));
       ghc = ghcWith (allTransitiveDeps modSpecs);
-      ghciArgs = lib.strings.escapeShellArgs
-        (ghcOpts ++ absoluteModuleFiles);
+      ghciArgs = ghcOpts ++ absoluteModuleFiles;
       absoluteModuleFiles =
         map
           (mod:
@@ -29,17 +28,6 @@ rec {
           modSpecs;
 
       dirs = allTransitiveDirectories modSpecs;
-      newGhc =
-        symlinkJoin
-          { name = "ghci";
-            paths = [ ghc ];
-            postBuild =
-            ''
-              wrapProgram "$out/bin/ghci" \
-                --add-flags "${ghciArgs}"
-            '';
-            buildInputs = [makeWrapper];
-          };
     in
       # This symlinks the extra dirs to $PWD for GHCi to work
       writeScriptBin "ghci-with-files"
@@ -60,6 +48,6 @@ rec {
           done
           fi
         done
-        ${newGhc}/bin/ghci
+        ${ghc}/bin/ghci ${lib.strings.escapeShellArgs ghciArgs}
         '';
 }
