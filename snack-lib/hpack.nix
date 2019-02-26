@@ -2,6 +2,7 @@
 
 with (callPackage ./lib.nix {});
 with (callPackage ./modules.nix {});
+with (callPackage ./package-spec.nix {});
 
 let
     y2j = runCommand "yaml2json"
@@ -24,7 +25,7 @@ in
   # Returns an attribute set with two fields:
   #  - library: a package spec
   #  - executable: an attr set of executable name to package spec
-  pkgDescrsFromHPack = packageYaml:
+  pkgSpecsFromHPack = packageYaml:
     let
         package = fromYAML (builtins.readFile packageYaml);
 
@@ -35,8 +36,9 @@ in
         topDeps = mkDeps package;
         topExtensions = optAttr package "default-extensions" [];
         topGhcOpts = optAttr package "ghc-options" [];
-        packageLib = withAttr package "library" null (component:
-            { src =
+        libs = withAttr package "library" [] (component:
+            [{
+              src =
                 let
                   base = builtins.dirOf packageYaml;
                   source-dirs = optAttr component "source-dirs" ".";
@@ -50,7 +52,7 @@ in
               dependencies = topDeps ++ mkDeps component;
               extensions = topExtensions ++ (optAttr component "extensions" []);
               ghcOpts = topGhcOpts ++ (optAttr component "ghc-options" []);
-            }
+            }]
           );
 
         exes =
@@ -79,10 +81,7 @@ in
               dependencies = topDeps ++ dropVersionBounds depOrPack.wrong;
               extensions = topExtensions ++ (optAttr component "extensions" []);
               ghcOpts = topGhcOpts ++ (optAttr component "ghc-options" []);
-              packages = map (_: packageLib) depOrPack.right;
+              packages = if lib.length depOrPack.right > 0 then libs else [];
             };
-    in
-      { library = packageLib;
-        executables = exes;
-      };
+    in exes ++ libs;
 }

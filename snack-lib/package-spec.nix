@@ -40,6 +40,7 @@ rec {
       # TODO: merge extra files and extra dirs together
       packageExtraFiles = mkPerModuleAttr extra-files;
       packageExtraDirectories = mkPerModuleAttr extra-directories;
+
       packagePackages = map mkPackageSpec packages;
     };
 

@@ -53,30 +53,6 @@ let
   ghcWith = deps: ghcWithPackages
     (ps: map (p: ps.${p}) deps);
 
-  specsFromPackageFile = packageFile:
-    let
-      basename = builtins.baseNameOf packageFile;
-      components = pkgs.lib.strings.splitString "." basename;
-      ext =
-        if pkgs.lib.length components <= 1
-        then abort ("File " ++ packageFile ++ " does not have an extension")
-        else pkgs.lib.last components;
-      fromNix = [(mkPackageSpec (import packageFile))];
-      fromHPack =
-        let
-          descrs = pkgDescrsFromHPack packageFile;
-          executables =
-            builtins.map mkPackageSpec descrs.executables;
-          library = withAttr descrs "library" null
-              (comp: if builtins.isNull comp then null else mkPackageSpec comp);
-        in executables ++ (if builtins.isNull library then [] else [ library ]);
-      specs =
-        if ext == "nix" then fromNix
-        else if ext == "yaml" then fromHPack
-        else if ext == "yml" then fromHPack
-        else abort ("Unknown extension " ++ ext ++ " of file " ++ packageFile);
-    in specs;
-
   # Normal build (libs, exes)
 
   inferBuild = packageFile:
@@ -142,6 +118,24 @@ let
           modSpecs = foldDAG fld [mainModName];
         in modSpecs.${mainModName};
     in mainModSpec;
+
+  # Get a list of package specs from a file (.nix or .yaml)
+  specsFromPackageFile = packageFile:
+    let
+      basename = builtins.baseNameOf packageFile;
+      components = pkgs.lib.strings.splitString "." basename;
+      ext =
+        if pkgs.lib.length components <= 1
+        then abort ("File " ++ packageFile ++ " does not have an extension")
+        else pkgs.lib.last components;
+      fromNix = [(mkPackageSpec (import packageFile))];
+      fromHPack = builtins.map mkPackageSpec (pkgSpecsFromHPack packageFile);
+      specs =
+        if ext == "nix" then fromNix
+        else if ext == "yaml" then fromHPack
+        else if ext == "yml" then fromHPack
+        else abort ("Unknown extension " ++ ext ++ " of file " ++ packageFile);
+    in specs;
 
 in
   {
