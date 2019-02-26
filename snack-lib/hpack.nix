@@ -20,7 +20,7 @@ let
         "${y2j} ${writeText "y2j" text}  > $out"
         );
       in builtins.fromJSON json;
-in
+in rec
 {
   # Returns an attribute set with two fields:
   #  - library: a package spec
@@ -28,6 +28,19 @@ in
   pkgSpecsFromHPack = packageYaml:
     let
         package = fromYAML (builtins.readFile packageYaml);
+        base = builtins.dirOf packageYaml;
+        commonAttrs = component:
+          { ghcOpts = topGhcOpts ++ (optAttr component "ghc-options" []);
+            extensions = topExtensions ++ (optAttr component "extensions" []);
+            src =
+              with { source-dirs = optAttr component "source-dirs" "."; };
+              if builtins.isList source-dirs
+              then builtins.map (sourceDir:
+                builtins.toPath "${builtins.toString base}/${sourceDir}"
+                ) source-dirs
+              else
+                builtins.toPath "${builtins.toString base}/${source-dirs}";
+          };
 
         # Snack drops the version bounds because here it has no meaning
         dropVersionBounds =
@@ -37,51 +50,43 @@ in
         topExtensions = optAttr package "default-extensions" [];
         topGhcOpts = optAttr package "ghc-options" [];
         libs = withAttr package "library" [] (component:
-            [{
-              src =
-                let
-                  base = builtins.dirOf packageYaml;
-                  source-dirs = optAttr component "source-dirs" ".";
-                in
-                  if builtins.isList source-dirs
-                  then builtins.map (sourceDir:
-                    builtins.toPath "${builtins.toString base}/${sourceDir}"
-                    ) source-dirs
-                  else
-                    builtins.toPath "${builtins.toString base}/${source-dirs}";
-              dependencies = topDeps ++ mkDeps component;
-              extensions = topExtensions ++ (optAttr component "extensions" []);
-              ghcOpts = topGhcOpts ++ (optAttr component "ghc-options" []);
-            }]
+            [ (commonAttrs component //
+                  { dependencies = topDeps ++ mkDeps component; }
+              )
+            ]
           );
 
         exes =
           withAttr package "executables" [] (lib.mapAttrsToList (k: v: mkExe k v)) ++
           withAttr package "executable" [] (comp: [(mkExe package.name comp)] );
         mkExe = nn: component:
-          let
-            depOrPack =
-              lib.lists.partition
-                (x: x == package.name)
-                (optAttr component "dependencies" []);
-          in
-            { main = fileToModule component.main;
-              name = nn;
-              src =
-                let
-                  base = builtins.dirOf packageYaml;
-                  source-dirs = optAttr component "source-dirs" ".";
-                in
-                  if builtins.isList source-dirs
-                  then builtins.map (sourceDir:
-                    builtins.toPath "${builtins.toString base}/${sourceDir}"
-                    ) source-dirs
-                  else
-                    builtins.toPath "${builtins.toString base}/${source-dirs}";
-              dependencies = topDeps ++ dropVersionBounds depOrPack.wrong;
-              extensions = topExtensions ++ (optAttr component "extensions" []);
-              ghcOpts = topGhcOpts ++ (optAttr component "ghc-options" []);
-              packages = if lib.length depOrPack.right > 0 then libs else [];
-            };
+          with
+          {
+            depsAndPacks = lib.foldl
+              (acc: x:
+                if x == package.name then tap acc "packs" (ps: ps ++ libs)
+                else if lib.hasPrefix "./" x then tap acc "packs" (ps:
+                  ps ++
+                  # This is extremely brittle:
+                  #   - there could be more than one package
+                  #   - this needs to make sure it only picks libraries
+                  #   - it only works with "package.yaml"
+                  [
+                    (lib.head
+                      ( pkgSpecsFromHPack
+                        ("${builtins.toString base}/${x}/package.yaml")
+                      )
+                    )
+                  ]
+                  )
+                else tap acc "deps" (ds: ds ++ [x])
+              ) { deps = []; packs = []; } (optAttr component "dependencies" []);
+          };
+          commonAttrs component //
+          { main = fileToModule component.main;
+            name = nn;
+            dependencies = topDeps ++ dropVersionBounds depsAndPacks.deps; # depOrPack.wrong;
+            packages = depsAndPacks.packs;
+          };
     in exes ++ libs;
 }

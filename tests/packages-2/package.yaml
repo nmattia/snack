@@ -1,0 +1,6 @@
+name: snack-packages
+
+executable:
+    main: Main.hs
+    dependencies:
+        - ./lib
