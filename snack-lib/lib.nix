@@ -50,4 +50,6 @@ withAttr = obj: attrName: def: f:
 optAttr = obj: attrName: def:
   if builtins.hasAttr attrName obj then obj.${attrName} else def;
 
+tap = obj: attrName: f: obj // { "${attrName}" = f (obj.${attrName}) ; };
+
 }

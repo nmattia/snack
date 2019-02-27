@@ -1,4 +1,4 @@
-name: snack-readme
+name: any-paths
 
 dependencies:
     - lens
@@ -11,7 +11,7 @@ executable:
     main: Main.hs
     source-dirs: ./app
     dependencies:
-        - snack-readme
+        - any-paths
 
 default-extensions:
     - OverloadedStrings
