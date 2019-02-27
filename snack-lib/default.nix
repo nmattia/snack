@@ -16,9 +16,10 @@ with (callPackage ./lib.nix {});
 with (callPackage ./modules.nix {});
 with (callPackage ./module-spec.nix {});
 with (callPackage ./package-spec.nix {});
-with (callPackage ./hpack.nix {});
 
-let
+with rec
+{
+  hpack = callPackage ./hpack.nix { inherit pkgDescriptionsFromPath; };
 
   # Derivation that creates a binary in a 'bin' folder.
   executable = packageFile:
@@ -119,31 +120,66 @@ let
         in modSpecs.${mainModName};
     in mainModSpec;
 
-  # Get a list of package specs from a file (.nix or .yaml)
-  specsFromPackageFile = packageFile:
-    let
-      basename = builtins.baseNameOf packageFile;
-      components = pkgs.lib.strings.splitString "." basename;
-      ext =
-        if pkgs.lib.length components <= 1
-        then abort ("File " ++ packageFile ++ " does not have an extension")
-        else pkgs.lib.last components;
-      fromNix = [(mkPackageSpec (import packageFile))];
-      fromHPack = builtins.map mkPackageSpec (pkgSpecsFromHPack packageFile);
-      specs =
+  # Get a list of package descriptions from a path
+  # This can be
+  #  - a path, relative or absolute, to a directory that contains either a
+  #     package.yaml or a package.nix
+  #  - a path, relative or absolute, to a file with either .nix or .yaml or
+  #     .yml extension
+
+  pkgDescriptionsFromPath =
+    with rec
+    {
+      pkgDescriptionsFromFile = packageFile:
+        with rec
+        {
+          basename = builtins.baseNameOf packageFile;
+          components = pkgs.lib.strings.splitString "." basename;
+          ext =
+            if pkgs.lib.length components <= 1
+            then abort ("File " ++ packageFile ++ " does not have an extension")
+            else pkgs.lib.last components;
+          fromNix = [(import packageFile)];
+          fromHPack = hpack.pkgDescriptionsFromHPack packageFile;
+        };
         if ext == "nix" then fromNix
         else if ext == "yaml" then fromHPack
         else if ext == "yml" then fromHPack
-        else abort ("Unknown extension " ++ ext ++ " of file " ++ packageFile);
-    in specs;
+        else abort ("Unknown extension " ++ ext ++ " of file " ++ packagePath);
+      pkgDescriptionsFromDir = packageDir:
+        with rec
+        { dirContent = builtins.readDir packageDir;
+          hasPackageYaml = builtins.hasAttr "package.yaml" dirContent;
+          hasPackageNix = builtins.hasAttr "package.nix" dirContent;
+        };
+        if hasPackageYaml && hasPackageNix
+          then abort "Found both package.yaml and package.nix in ${packageDir}"
+        else if ! (hasPackageYaml || hasPackageNix)
+          then abort "Couldn't find package.yaml or package.nix in ${packageDir}"
+        else if hasPackageYaml
+          then pkgDescriptionsFromFile
+            "${builtins.toString packageDir}/package.yaml"
+        else  pkgDescriptionsFromFile
+            "${builtins.toString packageDir}/package.nix";
+    };
 
-in
-  {
-    inherit
-    inferBuild
-    inferGhci
-    buildAsExecutable
-    buildAsLibrary
-    executable
-    ;
-  }
+    packagePath:
+    with { pathType = pkgs.lib.pathType packagePath ; } ;
+    if pathType == "directory"
+      then pkgDescriptionsFromDir packagePath
+    else if pathType == "regular"
+      then pkgDescriptionsFromFile packagePath
+    else abort "Don't know how to load package path of type ${pathType}";
+
+    specsFromPackageFile = packagePath:
+      map mkPackageSpec (pkgDescriptionsFromPath packagePath);
+};
+{
+  inherit
+  inferBuild
+  inferGhci
+  buildAsExecutable
+  buildAsLibrary
+  executable
+  ;
+}

@@ -1,4 +1,11 @@
-{ lib, glibcLocales, callPackage, writeText, runCommand, haskellPackages }:
+{ lib
+, glibcLocales
+, callPackage
+, writeText
+, runCommand
+, haskellPackages
+, pkgDescriptionsFromPath
+}:
 
 with (callPackage ./lib.nix {});
 with (callPackage ./modules.nix {});
@@ -22,10 +29,7 @@ let
       in builtins.fromJSON json;
 in rec
 {
-  # Returns an attribute set with two fields:
-  #  - library: a package spec
-  #  - executable: an attr set of executable name to package spec
-  pkgSpecsFromHPack = packageYaml:
+  pkgDescriptionsFromHPack = packageYaml:
     let
         package = fromYAML (builtins.readFile packageYaml);
         base = builtins.dirOf packageYaml;
@@ -70,11 +74,10 @@ in rec
                   # This is extremely brittle:
                   #   - there could be more than one package
                   #   - this needs to make sure it only picks libraries
-                  #   - it only works with "package.yaml"
                   [
                     (lib.head
-                      ( pkgSpecsFromHPack
-                        ("${builtins.toString base}/${x}/package.yaml")
+                      ( pkgDescriptionsFromPath
+                        ("${builtins.toString base}/${x}")
                       )
                     )
                   ]

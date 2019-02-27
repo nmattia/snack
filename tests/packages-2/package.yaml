@@ -4,3 +4,4 @@ executable:
     main: Main.hs
     dependencies:
         - ./lib
+        - ./lib2/package.yaml

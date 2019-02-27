@@ -1,4 +1,4 @@
-name: snack-packages-2-lib
+name: snack-packages-2-lib2
 
 # NOTE: should not fail if library is empty
 #  For some reason, Nix returns null as opposed to {}
