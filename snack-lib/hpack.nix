@@ -69,18 +69,18 @@ in rec
             depsAndPacks = lib.foldl
               (acc: x:
                 if x == package.name then tap acc "packs" (ps: ps ++ libs)
-                else if lib.hasPrefix "./" x then tap acc "packs" (ps:
-                  ps ++
-                  # This is extremely brittle:
-                  #   - there could be more than one package
-                  #   - this needs to make sure it only picks libraries
-                  [
-                    (lib.head
-                      ( pkgDescriptionsFromPath
-                        ("${builtins.toString base}/${x}")
+                else if lib.hasPrefix "./" x || lib.hasPrefix "/" x
+                  then tap acc "packs" (ps:
+                    ps ++
+                    [
+                      (lib.findSingle (x: ! (builtins.hasAttr "main" x))
+                        (abort "Couldn't find library")
+                        (abort "Found multiple libraries")
+                        ( pkgDescriptionsFromPath
+                          ("${builtins.toString base}/${x}")
+                        )
                       )
-                    )
-                  ]
+                    ]
                   )
                 else tap acc "deps" (ds: ds ++ [x])
               ) { deps = []; packs = []; } (optAttr component "dependencies" []);
@@ -88,7 +88,7 @@ in rec
           commonAttrs component //
           { main = fileToModule component.main;
             name = nn;
-            dependencies = topDeps ++ dropVersionBounds depsAndPacks.deps; # depOrPack.wrong;
+            dependencies = topDeps ++ dropVersionBounds depsAndPacks.deps;
             packages = depsAndPacks.packs;
           };
     in exes ++ libs;
