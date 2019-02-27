@@ -69,7 +69,7 @@ in rec
             depsAndPacks = lib.foldl
               (acc: x:
                 if x == package.name then tap acc "packs" (ps: ps ++ libs)
-                else if lib.hasPrefix "./" x || lib.hasPrefix "/" x
+                else if lib.hasPrefix "./" x
                   then tap acc "packs" (ps:
                     ps ++
                     [
@@ -77,8 +77,19 @@ in rec
                         (abort "Couldn't find library")
                         (abort "Found multiple libraries")
                         ( pkgDescriptionsFromPath
-                          ("${builtins.toString base}/${x}")
+                            "${builtins.toString base}/${x}"
                         )
+                      )
+                    ]
+                  )
+                else if lib.hasPrefix "/" x
+                  then tap acc "packs" (ps:
+                    ps ++
+                    [
+                      (lib.findSingle (x: ! (builtins.hasAttr "main" x))
+                        (abort "Couldn't find library")
+                        (abort "Found multiple libraries")
+                        ( pkgDescriptionsFromPath "${builtins.toString x}" )
                       )
                     ]
                   )
