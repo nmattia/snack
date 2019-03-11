@@ -1,23 +1,23 @@
 {
     "nixpkgs": {
-        "url": "https://github.com/NixOS/nixpkgs-channels/archive/753f58d9a42d346ff596f85475cfa69e308ea094.tar.gz",
+        "url": "https://github.com/NixOS/nixpkgs-channels/archive/37694c8cc0e9ecab60d06f1d9a2fd0073bcc5fa3.tar.gz",
         "owner": "NixOS",
         "branch": "nixos-18.09",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz",
         "repo": "nixpkgs-channels",
-        "sha256": "0d0kkm97ycp9i8cnr1rc9zpqilh1ldi87vwn6qj46r0n8pljjigh",
+        "sha256": "1ibjg6ln2y764wfg0yd0v055jm4xzhmxy5lfz63m6jr3y16jdmzb",
         "description": "Nixpkgs/NixOS branches that track the Nixpkgs/NixOS channels",
-        "rev": "753f58d9a42d346ff596f85475cfa69e308ea094"
+        "rev": "37694c8cc0e9ecab60d06f1d9a2fd0073bcc5fa3"
     },
     "niv": {
         "homepage": "https://github.com/nmattia/niv",
-        "url": "https://github.com/nmattia/niv/archive/84692d2123b654da98f626bcf738f07cad3a2144.tar.gz",
+        "url": "https://github.com/nmattia/niv/archive/82bd4999de0215d4de8e5b845d338f8114c590c5.tar.gz",
         "owner": "nmattia",
         "branch": "master",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz",
         "repo": "niv",
-        "sha256": "11j16q6rid8jrhrsanycsi86v0jhw07mp9c1n3yw8njj8gq4vfjq",
+        "sha256": "11gys7rrj1jspibbi5gvdb9liq8n18mrdfvk4r1mmi20zana27ar",
         "description": "Easy dependency management for Nix projects",
-        "rev": "84692d2123b654da98f626bcf738f07cad3a2144"
+        "rev": "82bd4999de0215d4de8e5b845d338f8114c590c5"
     }
 }
