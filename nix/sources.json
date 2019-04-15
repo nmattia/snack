@@ -5,19 +5,21 @@
         "branch": "nixos-18.09",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz",
         "repo": "nixpkgs-channels",
+        "type": "tarball",
         "sha256": "16nryjvfaw2dq55yp34hcw5bz8nlidhdi3yvr2ilr7lrlm4k54p1",
         "description": "Nixpkgs/NixOS branches that track the Nixpkgs/NixOS channels",
         "rev": "46d3867a08a9206685e2b6a8e19f5ad9f6ab4b39"
     },
     "niv": {
         "homepage": "https://github.com/nmattia/niv",
-        "url": "https://github.com/nmattia/niv/archive/cbadb8355ca348991d2d1ec9c7dfdb30c77c35d1.tar.gz",
+        "url": "https://github.com/nmattia/niv/archive/a489b65a5c3a29983701069d1ce395b23d9bde64.tar.gz",
         "owner": "nmattia",
         "branch": "master",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz",
         "repo": "niv",
-        "sha256": "04kislk1na5930xqhzjilc4b0hhvggw3r81a7iqh4fdfc94vw5sr",
+        "type": "tarball",
+        "sha256": "0mvh2x4l4f3nbgzzygk317nkzbyj3xgnczivgdra4q82dg8x77ka",
         "description": "Easy dependency management for Nix projects",
-        "rev": "cbadb8355ca348991d2d1ec9c7dfdb30c77c35d1"
+        "rev": "a489b65a5c3a29983701069d1ce395b23d9bde64"
     }
 }
