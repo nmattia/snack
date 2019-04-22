@@ -25,7 +25,7 @@ rec {
           then "Main.o"
           else "${moduleToObject modName}"
         ) [moduleSpec];
-      objAttrs = builtins.mapAttrs (k: v: v.built) buildPlan';
+      objAttrs = lib.mapAttrs (k: v: v.built) buildPlan';
       objList = lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
       deps = buildPlan'.${moduleSpec.moduleName}.transitive.moduleDependencies;
       ghc = ghcWith deps;
