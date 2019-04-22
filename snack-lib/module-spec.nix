@@ -79,22 +79,28 @@ rec {
   allTransitiveDirectories = allTransitiveLists "moduleDirectories";
   allTransitiveImports = allTransitiveLists "moduleImports";
 
+  # Returns a list of all the specified attributes "attr" present in the
+  # dependency graph. The list does not contain duplicates.
   allTransitiveLists = attr: modSpecs:
-    lib.lists.unique
-    (
-    foldDAG
-      { f = modSpec:
-          lib.lists.foldl
-            (x: y: x ++ [y])
-            [] modSpec.${attr};
-        empty = [];
-        elemLabel = modSpec: modSpec.moduleName;
-        reduce = a: b: a ++ b;
-        elemChildren = modSpec: modSpec.moduleImports;
+    with rec
+      { wrap = modSpec:
+          { key = modSpec.moduleName;
+            inherit modSpec;
+          };
+        unwrap = obj: obj.modSpec;
+        finish = objs:
+          lib.unique (
+          lib.concatLists (
+          map (modSpec: modSpec.${attr}) (
+          map unwrap objs
+          )));
+      };
+    finish (
+    builtins.genericClosure
+      { startSet = map wrap modSpecs;
+        operator = obj: map wrap obj.modSpec.moduleImports;
       }
-      modSpecs
-    )
-      ;
+    );
 
   # Takes a package spec and returns (modSpecs -> Fold)
   modSpecFoldFromPackageSpec = pkgSpec:
