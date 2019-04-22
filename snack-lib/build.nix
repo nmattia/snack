@@ -18,14 +18,22 @@ rec {
   buildMain = ghcWith: mainModSpec:
     buildModulesRec ghcWith
       # XXX: the main modules need special handling regarding the object name
-      { "${mainModSpec.moduleName}" =
-        "${buildModule ghcWith mainModSpec}/Main.o";}
-      mainModSpec.moduleImports;
+      (modSpec:
+        if modSpec.moduleName == mainModSpec.moduleName
+        then
+          "${buildModule ghcWith modSpec}/Main.o"
+        else "${buildModule ghcWith modSpec}/${moduleToObject modSpec.moduleName}"
+      )
+      [mainModSpec];
 
   # returns a attrset where the keys are the module names and the values are
   # the modules' object file path
   buildLibrary = ghcWith: modSpecs:
-    buildModulesRec ghcWith {} modSpecs;
+    buildModulesRec ghcWith
+      (modSpec:
+        "${buildModule ghcWith modSpec}/${moduleToObject modSpec.moduleName}"
+      )
+    modSpecs;
 
   linkMainModule =
       { ghcWith
@@ -55,21 +63,27 @@ rec {
         relExePath = relExePath;
       };
 
-  # Build the given modules (recursively) using the given accumulator to keep
-  # track of which modules have been built already
+  # Build the given modules (recursively) using the provided build function.
   # XXX: doesn't work if several modules in the DAG have the same name
-  buildModulesRec = ghcWith: empty: modSpecs:
-    foldDAG
-      { f = mod:
-          { "${mod.moduleName}" =
-            "${buildModule ghcWith mod}/${moduleToObject mod.moduleName}";
+  buildModulesRec = ghcWith: build: modSpecs:
+    with
+      { wrap = modSpec:
+          { key = modSpec.moduleName;
+            inherit modSpec;
+            built = build modSpec;
           };
-        elemLabel = mod: mod.moduleName;
-        elemChildren = mod: mod.moduleImports;
-        reduce = a: b: a // b;
-        empty = empty;
+        finish = objs:
+          lib.listToAttrs (
+          map (obj: { name = obj.modSpec.moduleName; value = obj.built; } ) (
+          objs
+          ));
+      };
+    finish (
+    builtins.genericClosure
+      { startSet = map wrap modSpecs;
+        operator = obj: map wrap obj.modSpec.moduleImports;
       }
-      modSpecs;
+      );
 
   buildModule = ghcWith: modSpec:
     let
