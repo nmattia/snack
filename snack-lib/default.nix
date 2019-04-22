@@ -163,7 +163,7 @@ with rec
             "${builtins.toString packageDir}/package.nix";
     };
 
-    packagePath:
+  packagePath:
     with { pathType = pkgs.lib.pathType packagePath ; } ;
     if pathType == "directory"
       then pkgDescriptionsFromDir packagePath

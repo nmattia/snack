@@ -68,11 +68,6 @@ rec {
         elemChildren = modImportsNames;
       };
 
-  # Returns a list of all modules in the module spec graph
-  flattenModuleSpec = modSpec:
-    [ modSpec ] ++
-      ( lib.lists.concatMap flattenModuleSpec modSpec.moduleImports );
-
   # Takes a package spec and returns (modSpecs -> Fold)
   modSpecFoldFromPackageSpec = pkgSpec:
       let
@@ -105,5 +100,4 @@ rec {
             extsByModuleName = extsByModuleName;
             ghcOptsByModuleName = ghcOptsByModuleName;
           };
-
 }
