@@ -12,29 +12,6 @@ with (callPackage ./module-spec.nix {});
 
 rec {
 
-  # Returns an attribute set where the keys are all the built module names and
-  # the values are the paths to the object files.
-  # mainModSpec: a "main" module
-  buildMain = ghcWith: mainModSpec:
-    buildModulesRec ghcWith
-      # XXX: the main modules need special handling regarding the object name
-      (modSpec:
-        if modSpec.moduleName == mainModSpec.moduleName
-        then
-          "${buildModule ghcWith modSpec}/Main.o"
-        else "${buildModule ghcWith modSpec}/${moduleToObject modSpec.moduleName}"
-      )
-      [mainModSpec];
-
-  # returns a attrset where the keys are the module names and the values are
-  # the modules' object file path
-  buildLibrary = ghcWith: modSpecs:
-    buildModulesRec ghcWith
-      (modSpec:
-        "${buildModule ghcWith modSpec}/${moduleToObject modSpec.moduleName}"
-      )
-    modSpecs;
-
   linkMainModule =
       { ghcWith
       , moduleSpec # The module to build
@@ -63,14 +40,34 @@ rec {
         relExePath = relExePath;
       };
 
+  # Returns an attribute set where the keys are all the built module names and
+  # the values are the paths to the object files.
+  # mainModSpec: a "main" module
+  buildMain = ghcWith: mainModSpec:
+    buildModulesRec ghcWith
+      # XXX: the main modules need special handling regarding the object name
+      (modName:
+        if modName == mainModSpec.moduleName
+        then "Main.o"
+        else "${moduleToObject modName}"
+      )
+      [mainModSpec];
+
+  # returns a attrset where the keys are the module names and the values are
+  # the modules' object file path
+  buildLibrary = ghcWith: modSpecs:
+    buildModulesRec ghcWith
+      (modName: "${moduleToObject modName}")
+    modSpecs;
+
   # Build the given modules (recursively) using the provided build function.
   # XXX: doesn't work if several modules in the DAG have the same name
-  buildModulesRec = ghcWith: build: modSpecs:
+  buildModulesRec = ghcWith: objectName: modSpecs:
     with
       { wrap = modSpec:
           { key = modSpec.moduleName;
             inherit modSpec;
-            built = build modSpec;
+            built = "${buildModule ghcWith modSpec}/${objectName modSpec.moduleName}";
           };
         finish = objs:
           lib.listToAttrs (
