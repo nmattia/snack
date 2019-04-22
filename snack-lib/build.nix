@@ -18,9 +18,16 @@ rec {
       , name # The name to give the executable
       }:
     let
-      objAttrs = buildMain ghcWith moduleSpec;
+      buildPlan' = buildPlan ghcWith
+        # XXX: the main modules need special handling regarding the object name
+        (modName:
+          if modName == moduleSpec.moduleName
+          then "Main.o"
+          else "${moduleToObject modName}"
+        ) [moduleSpec];
+      objAttrs = builtins.mapAttrs (k: v: v.built) buildPlan';
       objList = lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
-      deps = allTransitiveDeps [moduleSpec];
+      deps = buildPlan'.${moduleSpec.moduleName}.transitive.moduleDependencies;
       ghc = ghcWith deps;
       ghcOptsArgs = lib.strings.escapeShellArgs moduleSpec.moduleGhcOpts;
       packageList = map (p: "-package ${p}") deps;
@@ -40,19 +47,6 @@ rec {
         relExePath = relExePath;
       };
 
-  # Returns an attribute set where the keys are all the built module names and
-  # the values are the paths to the object files.
-  # mainModSpec: a "main" module
-  buildMain = ghcWith: mainModSpec:
-    buildModulesRec ghcWith
-      # XXX: the main modules need special handling regarding the object name
-      (modName:
-        if modName == mainModSpec.moduleName
-        then "Main.o"
-        else "${moduleToObject modName}"
-      )
-      [mainModSpec];
-
   # returns a attrset where the keys are the module names and the values are
   # the modules' object file path
   buildLibrary = ghcWith: modSpecs:
@@ -60,37 +54,67 @@ rec {
       (modName: "${moduleToObject modName}")
     modSpecs;
 
-  # Build the given modules (recursively) using the provided build function.
-  # XXX: doesn't work if several modules in the DAG have the same name
-  buildModulesRec = ghcWith: objectName: modSpecs:
-    with
-      { wrap = modSpec:
+  # TODO: what is this?
+  buildPlan = ghcWith: objectName: modSpecs:
+    with rec
+      { getTransitiveAttr = attr: modSpec:
+          lib.unique (
+            modSpec.${attr} ++
+              lib.concatLists (map (modSpec': finalSet.${modSpec'.moduleName}.transitive.${attr}) modSpec.moduleImports)
+            );
+
+        getBuilts = modSpec:
+          lib.foldl
+            (acc: modSpec': acc // { "${modSpec'.moduleName}" = buildModule ghcWith finalSet.${modSpec'.moduleName}.transitive getBuilts modSpec'; })
+            {} modSpec.moduleImports //
+          lib.foldl (acc: modSpec': acc // getBuilts modSpec') {} modSpec.moduleImports;
+
+        wrap = modSpec: rec
           { key = modSpec.moduleName;
             inherit modSpec;
-            built = "${buildModule ghcWith modSpec}/${objectName modSpec.moduleName}";
+            built = "${buildModule ghcWith transitive getBuilts modSpec}/${objectName modSpec.moduleName}";
+            transitive =
+              { moduleDependencies = getTransitiveAttr "moduleDependencies" modSpec;
+                moduleGhcOpts = getTransitiveAttr "moduleGhcOpts" modSpec;
+                moduleExtensions = getTransitiveAttr "moduleExtensions" modSpec;
+                moduleImports = getTransitiveAttr "moduleImports" modSpec;
+                moduleDirectories = getTransitiveAttr "moduleDirectories" modSpec;
+              };
+            builts = getBuilts modSpec;
           };
-        finish = objs:
-          lib.listToAttrs (
-          map (obj: { name = obj.modSpec.moduleName; value = obj.built; } ) (
-          objs
-          ));
-      };
-    finish (
-    builtins.genericClosure
-      { startSet = map wrap modSpecs;
-        operator = obj: map wrap obj.modSpec.moduleImports;
-      }
-      );
 
-  buildModule = ghcWith: modSpec:
+        toSet = objs:
+          lib.listToAttrs (
+            map (obj: { name = obj.modSpec.moduleName; value = obj; })
+            objs
+            );
+
+        finalSet = toSet finalList;
+
+        finalList =
+          builtins.genericClosure
+            { startSet = map wrap modSpecs;
+              operator = obj: map wrap obj.modSpec.moduleImports;
+            };
+
+        allBuiltModules = finish finalList;
+      };
+    finalSet;
+
+  # Build the given modules recursively.
+  # XXX: doesn't work if several modules in the DAG have the same name
+  buildModulesRec = ghcWith: objectName: modSpecs:
+    lib.mapAttrs (k: v: v.built) (buildPlan ghcWith objectName modSpecs);
+
+  buildModule = ghcWith: transitive: getBuilts: modSpec:
     let
       ghc = ghcWith deps;
-      deps = allTransitiveDeps [modSpec];
+      deps = transitive.moduleDependencies;
       exts = modSpec.moduleExtensions;
       ghcOpts = modSpec.moduleGhcOpts ++ (map (x: "-X${x}") exts);
       ghcOptsArgs = lib.strings.escapeShellArgs ghcOpts;
       objectName = modSpec.moduleName;
-      builtDeps = map (buildModule ghcWith) (allTransitiveImports [modSpec]);
+      builtDeps = builtins.attrValues (getBuilts modSpec);
       depsDirs = map (x: x + "/") builtDeps;
       base = modSpec.moduleBase;
       makeSymtree =

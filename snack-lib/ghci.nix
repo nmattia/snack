@@ -2,6 +2,7 @@
 
 with (callPackage ./module-spec.nix {});
 with (callPackage ./modules.nix {});
+with (callPackage ./build.nix {});
 
 rec {
 
@@ -9,15 +10,23 @@ rec {
   # module spec
   ghciWithMain = ghcWith: mainModSpec:
     let
-      imports = allTransitiveImports [mainModSpec];
+      buildPlan' = buildPlan ghcWith
+        (modName: abort "GHCi shouldn't need objects") [mainModSpec];
+      imports = buildPlan'.${mainModSpec.moduleName}.transitive.moduleImports;
       modSpecs = [mainModSpec] ++ imports;
     in ghciWithModules ghcWith modSpecs;
 
   ghciWithModules = ghcWith: modSpecs:
     let
-      ghcOpts = allTransitiveGhcOpts modSpecs
-        ++ (map (x: "-X${x}") (allTransitiveExtensions modSpecs));
-      ghc = ghcWith (allTransitiveDeps modSpecs);
+      buildPlan' = buildPlan ghciWith
+        (modName: abort "GHCi shouldn't need objects") modSpecs;
+      allAttr = attr: lib.unique (lib.concatMap (modSpec: modSpec.${attr}) modSpecs);
+      allGhcOpts = allAttr "moduleGhcOpts";
+      allExtensions = allAttr "moduleExtensions";
+      allDependencies = allAttr "moduleDependencies";
+      ghcOpts = allGhcOpts ++ (map (x: "-X${x}") allExtensions);
+      ghc = ghcWith allDependencies;
+      dirs = allAttr "moduleDirectories";
       ghciArgs = ghcOpts ++ absoluteModuleFiles;
       absoluteModuleFiles =
         map
@@ -26,8 +35,6 @@ rec {
               "/${moduleToFile mod.moduleName}"
           )
           modSpecs;
-
-      dirs = allTransitiveDirectories modSpecs;
     in
       # This symlinks the extra dirs to $PWD for GHCi to work
       writeScriptBin "ghci-with-files"
