@@ -73,35 +73,6 @@ rec {
     [ modSpec ] ++
       ( lib.lists.concatMap flattenModuleSpec modSpec.moduleImports );
 
-  allTransitiveDeps = allTransitiveLists "moduleDependencies";
-  allTransitiveGhcOpts = allTransitiveLists "moduleGhcOpts";
-  allTransitiveExtensions = allTransitiveLists "moduleExtensions";
-  allTransitiveDirectories = allTransitiveLists "moduleDirectories";
-  allTransitiveImports = allTransitiveLists "moduleImports";
-
-  # Returns a list of all the specified attributes "attr" present in the
-  # dependency graph. The list does not contain duplicates.
-  allTransitiveLists = attr: modSpecs:
-    with rec
-      { wrap = modSpec:
-          { key = modSpec.moduleName;
-            inherit modSpec;
-          };
-        unwrap = obj: obj.modSpec;
-        finish = objs:
-          lib.unique (
-          lib.concatLists (
-          map (modSpec: modSpec.${attr}) (
-          map unwrap objs
-          )));
-      };
-    finish (
-    builtins.genericClosure
-      { startSet = map wrap modSpecs;
-        operator = obj: map wrap obj.modSpec.moduleImports;
-      }
-    );
-
   # Takes a package spec and returns (modSpecs -> Fold)
   modSpecFoldFromPackageSpec = pkgSpec:
       let
