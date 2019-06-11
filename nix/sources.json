@@ -12,14 +12,14 @@
     },
     "niv": {
         "homepage": "https://github.com/nmattia/niv",
-        "url": "https://github.com/nmattia/niv/archive/5d9e3a5f7d51765f0369a4682770ec57d863f19f.tar.gz",
+        "url": "https://github.com/nmattia/niv/archive/65786ee156d589324c840beb78c34b8b922ddbf1.tar.gz",
         "owner": "nmattia",
         "branch": "master",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz",
         "repo": "niv",
         "type": "tarball",
-        "sha256": "0x7d2rb89h0h7g8sjsgax6ncvf2wwbmxkgvlfi53d00kxj6kfzba",
+        "sha256": "14janllflwakzx98xrp8qgw9admkgr1j1p4gyl850ahmn6gwk8dr",
         "description": "Easy dependency management for Nix projects",
-        "rev": "5d9e3a5f7d51765f0369a4682770ec57d863f19f"
+        "rev": "65786ee156d589324c840beb78c34b8b922ddbf1"
     }
 }
