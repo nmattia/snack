@@ -5,6 +5,7 @@
 { pkgs
 , ghc-version ? "ghc844"
 , ghcWithPackages ? pkgs.haskell.packages.${ghc-version}.ghcWithPackages
+, haskellPackages ? pkgs.haskell.packages.${ghc-version}
 }:
 
 with pkgs;
@@ -173,6 +174,27 @@ with rec
 
     specsFromPackageFile = packagePath:
       map mkPackageSpec (pkgDescriptionsFromPath packagePath);
+
+    buildHoogle = packagePath:
+      let
+        concatUnion = lists: 
+          let
+            sets = map (l: pkgs.lib.genAttrs l (_: null)) lists;
+            union = pkgs.lib.foldAttrs (n: a: null) {} sets;
+          in
+            builtins.attrNames union;
+        allDeps = concatUnion (map (spec: spec.packageDependencies {}) (specsFromPackageFile packagePath));
+        drv = haskellPackages.hoogleLocal { packages = map (p: haskellPackages.${p}) allDeps; };
+      in 
+      writeText "hoogle-json"
+      ( builtins.toJSON
+          { build_type = "hoogle";
+            result = {
+              exe_path = "${drv.out}/bin/hoogle";
+            };
+          }
+      );
+
 };
 {
   inherit
@@ -181,5 +203,6 @@ with rec
   buildAsExecutable
   buildAsLibrary
   executable
+  buildHoogle
   ;
 }

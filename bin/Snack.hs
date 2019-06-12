@@ -236,6 +236,7 @@ data Command
   | Run [String] -- Run with extra args
   | Ghci
   | Test
+  | Hoogle
 
 parseCommand :: Opts.Parser Command
 parseCommand =
@@ -245,8 +246,9 @@ parseCommand =
         ( Run <$> Opts.many (Opts.argument Opts.str (Opts.metavar "ARG"))
         ) mempty)
     <>  Opts.command "ghci" (Opts.info (pure Ghci) mempty)
+    <>  Opts.command "hoogle" (Opts.info (pure Hoogle) mempty)
     )
-    <|> Opts.hsubparser
+  <|> Opts.hsubparser
     ( Opts.command "test" (Opts.info (pure Test) (Opts.progDesc "Use build, run or ghci commands with test suites."))
     <> Opts.commandGroup "Unavailable commands:"
     )
@@ -285,6 +287,7 @@ data BuildResult
   = BuiltLibrary LibraryBuild
   | BuiltExecutable ExecutableBuild
   | BuiltGhci GhciBuild
+  | BuiltHoogle HoogleBuild
   deriving Show
 
 instance Aeson.FromJSON BuildResult where
@@ -292,6 +295,7 @@ instance Aeson.FromJSON BuildResult where
       BuiltLibrary <$> (guardBuildType "library" v)
       <|> BuiltExecutable <$> (guardBuildType "executable" v)
       <|> BuiltGhci <$> (guardBuildType "ghci" v)
+      <|> BuiltHoogle <$> (guardBuildType "hoogle" v)
       where
         guardBuildType :: FromJSON a => T.Text -> Aeson.Value -> Aeson.Parser a
         guardBuildType ty = Aeson.withObject "build result" $ \o -> do
@@ -317,6 +321,15 @@ newtype ExecutableBuild = ExecutableBuild NixPath
 instance FromJSON ExecutableBuild where
   parseJSON = Aeson.withObject "executable build" $ \o ->
     ExecutableBuild <$> o .: "exe_path"
+
+newtype HoogleBuild = HoogleBuild
+  { hoogleExePath :: NixPath
+  }
+  deriving stock Show
+
+instance FromJSON HoogleBuild where
+  parseJSON = Aeson.withObject "hoogle build" $ \o ->
+    HoogleBuild <$> o .: "exe_path"
 
 data NixArg = NixArg
   { argType :: NixArgType
@@ -427,6 +440,22 @@ snackGhci snackCfg packageFile = do
       (BuiltGhci g):_ -> pure g
       bs -> throwIO $ userError $ "Expected GHCi build, got " <> show bs
 
+
+snackHoogle :: SnackConfig -> PackageFile -> Sh HoogleBuild
+snackHoogle snackCfg packageFile = do
+    NixPath out <- nixBuild snackCfg
+      [ NixArg
+          { argName = "packageFile"
+          , argValue = T.pack $ unPackageFile packageFile
+          , argType = Arg
+          }
+      ]
+      $ NixExpr "snack.buildHoogle packageFile"
+    liftIO (BS.readFile (T.unpack out)) >>= decodeOrFail >>= \case
+      BuiltHoogle hb -> pure hb
+      bs -> throwIO $ userError $ "Expected Hoogle build, got " <> show bs
+
+
 runCommand :: SnackConfig -> PackageFile -> Command -> IO ()
 runCommand snackCfg packageFile = \case
   Build -> S.shelly $ void $ snackBuild snackCfg packageFile
@@ -434,6 +463,9 @@ runCommand snackCfg packageFile = \case
   Ghci -> flip runExe [] =<<
     ghciExePath <$> (quiet (snackGhci snackCfg packageFile))
   Test -> noTest
+  Hoogle -> flip runExe [ "server", "--local" ] =<<
+    hoogleExePath <$> S.shelly (snackHoogle snackCfg packageFile)
+
 
 noTest :: IO a
 noTest = fail "There is no test command for test suites"
