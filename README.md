@@ -23,58 +23,34 @@ It will
 Excited? Check out the [install](#install) and [usage](#usage) sections. Make
 sure to also check out the [Caveat Emptor](#caveat-emptor) section.
 
-## Why should I use Snack?
-
-There are plenty of Haskell build tools around ([Cabal][cabal], [Stack][stack],
-[Bazel][haskell-rules], ...). Unfortunately none of these allow what I consider
-to be an ideal workflow:
-
-1. The same build tool is used by developers and on CI.
-2. The build tool guarantees that builds are reproducible.
-3. The builds are incremental, i.e. if a library contains 300 modules and I
-   modify the `main` function, only the `Main` module will be rebuilt.
-
-Using Cabal inside of Nix solves (2); however this means that the builds are
-not incremental anymore (3). This _may_ not be a problem on CI but definitely
-is when developing locally. The way to work around that is to use Cabal inside
-a nix-shell locally and call cabal2nix on CI. This means that developers use a
-different tool locally than on CI (1). Moreover, a lot of projects nowadays use
-Stack and, somewhat more importantly, Stackage LTSs. This makes local builds
-quite easy (in spite of the occasional rebuild when changing flags) but in
-order to perform a Nix build one has to generate some Nix boilerplate through
-tools like stackage2nix or stack2nix (which do not always work on CI).
-
-In comparison, _snack_ performs the exact same build on the developer's machine
-as on CI. The builds are incremental, maybe more so than Cabal builds: if you
-depend on a snack package _foo_ from package _bar_, and modify a module _Foo_
-from _foo_ which isn't used in _bar_, no recompilation will occur. Moreover,
-you benefit from your CI's cache. Finally, because _snack_ is just Nix (and
-works with the Nix sandbox) you have pretty good guarantees that your builds
-are reproducible.
-
-### Caveat Emptor
-
-The _snack_ library and executable are in their very early stages. They need a
-lot of testing and massaging. The main (advertised) features are there, but (1)
-may break for your particular project and (2) may break more in the future.
-
-Now that this is out of the way, install _snack_, break it, and help me improve it!
-
 ## Install
 
 _See the [Hacking](#hacking) section if you want to hack on snack_
 
-Assuming that [Nix][nix] is installed on your machine, clone this repo
-and run:
+Make sure you have [Nix][nix] installed.
+
+### 1. With [niv]
+
+Run this command:
 
 ``` shell
-$ ./script/install
+$ niv add nmattia/snack
 ```
 
-which is equivalent to
+and use it with
+
+``` nix
+{
+    snack = (pkgs.callPackage sources.snack {}).snack-exe;
+}
+```
+
+### 2. Globally
+
+Run this command:
 
 ``` shell
-$ nix-env -f ./default.nix -iA snack-exe
+$ nix-env -iA snack-exe -f https://github.com/nmattia/snack/tarball/master
 ```
 
 The _snack_ executable is now in your `PATH`:
@@ -299,6 +275,43 @@ _snack_ builds itself, so its [`package.nix`](./bin/package.nix) is a good examp
 of an advanced configuration. You can also check out the [test
 folder](./tests).
 
+## Why should I use Snack?
+
+There are plenty of Haskell build tools around ([Cabal][cabal], [Stack][stack],
+[Bazel][haskell-rules], ...). Unfortunately none of these allow what I consider
+to be an ideal workflow:
+
+1. The same build tool is used by developers and on CI.
+2. The build tool guarantees that builds are reproducible.
+3. The builds are incremental, i.e. if a library contains 300 modules and I
+   modify the `main` function, only the `Main` module will be rebuilt.
+
+Using Cabal inside of Nix solves (2); however this means that the builds are
+not incremental anymore (3). This _may_ not be a problem on CI but definitely
+is when developing locally. The way to work around that is to use Cabal inside
+a nix-shell locally and call cabal2nix on CI. This means that developers use a
+different tool locally than on CI (1). Moreover, a lot of projects nowadays use
+Stack and, somewhat more importantly, Stackage LTSs. This makes local builds
+quite easy (in spite of the occasional rebuild when changing flags) but in
+order to perform a Nix build one has to generate some Nix boilerplate through
+tools like stackage2nix or stack2nix (which do not always work on CI).
+
+In comparison, _snack_ performs the exact same build on the developer's machine
+as on CI. The builds are incremental, maybe more so than Cabal builds: if you
+depend on a snack package _foo_ from package _bar_, and modify a module _Foo_
+from _foo_ which isn't used in _bar_, no recompilation will occur. Moreover,
+you benefit from your CI's cache. Finally, because _snack_ is just Nix (and
+works with the Nix sandbox) you have pretty good guarantees that your builds
+are reproducible.
+
+### Caveat Emptor
+
+The _snack_ library and executable are in their very early stages. They need a
+lot of testing and massaging. The main (advertised) features are there, but (1)
+may break for your particular project and (2) may break more in the future.
+
+Now that this is out of the way, install _snack_, break it, and help me improve it!
+
 ## Hacking
 
 There are two different components you can hack:
@@ -359,3 +372,4 @@ Big thanks to
 [cabal]: https://www.haskell.org/cabal/
 [stack]: https://haskellstack.org
 [haskell-rules]: https://github.com/tweag/rules_haskell
+[niv]: https://github.com/nmattia/niv
