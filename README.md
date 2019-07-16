@@ -31,17 +31,47 @@ Make sure you have [Nix][nix] installed.
 
 ### 1. With [niv]
 
-Run this command:
+Run this command (after you have run `niv init`):
 
 ``` shell
 $ niv add nmattia/snack
 ```
 
-and use it with
+This will add an entry in your `nix/sources.json` with the latest revision of snack.
+
+To use it you will need to import the source description from `nix/sources.nix` and then import the source (which downloads and evaluates its `default.nix`) so you can access the snack-exe attribute:
 
 ``` nix
-{
-    snack = (pkgs.callPackage sources.snack {}).snack-exe;
+let
+  sources = import ./sources.nix;
+in
+  {
+    snack = (import sources.snack).snack-exe;
+  }
+```
+
+An example that combines this into an overlay over the `nixpkgs` also exported by `nix/sources.nix`:
+
+``` nix
+{ sources ? import ./sources.nix }:
+with
+  { overlay = _: _:
+      {
+        niv = (import sources.niv {}).niv; # this is how you import niv into the overlay as well
+        snack = (import sources.snack).snack-exe;
+      };
+  };
+import sources.nixpkgs
+  { overlays = [ overlay ] ; config = {}; }
+```
+
+If you save the above nix expression as `nix/default.nix` then you can have a `shell.nix` imports it as such:
+
+
+``` nix
+with { pkgs = import ./nix {}; };
+pkgs.mkShell {
+  buildInputs = [ pkgs.niv pkgs.nix pkgs.snack ];
 }
 ```
 
