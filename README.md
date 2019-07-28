@@ -277,6 +277,7 @@ rec {
   #  * ghc822
   #  * ghc841
   #  * ghc842
+  #  * ghc864
   #  * ghcHEAD
   #  * ghcjs
   #  * ghcjsHEAD
