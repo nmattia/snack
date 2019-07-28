@@ -3,7 +3,7 @@
 # TODO: make sure that filters for "base" are airtight
 # TODO: document the sh*t out of these functions
 { pkgs
-, ghc-version ? "ghc844"
+, ghc-version ? "ghc864"
 , ghcWithPackages ? pkgs.haskell.packages.${ghc-version}.ghcWithPackages
 , haskellPackages ? pkgs.haskell.packages.${ghc-version}
 }:
