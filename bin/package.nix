@@ -7,7 +7,7 @@ let
     };
   lib64 = pkgs.runCommand "lib64" {}
     ''
-      tar -czf lib.tar.gz -C ${../snack-lib} .
+      tar -czf lib.tar.gz -C ${pkgs.lib.cleanSource ../snack-lib} .
       mkdir -p $out
       base64 lib.tar.gz > $out/lib.tar.gz.b64
     '';
