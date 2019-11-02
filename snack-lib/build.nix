@@ -4,6 +4,9 @@
 , stdenv
 , rsync
 , symlinkJoin
+, writeScript
+, bash
+, coreutils
 }:
 
 with (callPackage ./modules.nix {});
@@ -114,23 +117,24 @@ rec {
                 modSpec.moduleFiles
             ) >= 1
         ) base;
-    in stdenv.mkDerivation
-    { name = objectName;
       src = symlinkJoin
         { name = "extra-files";
           paths = [ extraFiles ] ++ modSpec.moduleDirectories;
         };
-      phases =
-        [ "unpackPhase" "buildPhase" ];
-
+    in builtins.derivation
+    { name = objectName;
+      system = stdenv.system;
       imports = map (mmm: mmm.moduleName) modSpec.moduleImports;
-      buildPhase =
+      PATH = lib.makeBinPath [ coreutils rsync ghc ];
+      builder = writeScript "${objectName}-builder"
         ''
+          #!${bash}/bin/bash
           echo "Building module ${modSpec.moduleName}"
           echo "Local imports are:"
           for foo in $imports; do
             echo " - $foo"
           done
+          cp -r ${src}/. ./
 
           mkdir -p $out
           echo "Creating dependencies symtree for module ${modSpec.moduleName}"
@@ -144,14 +148,7 @@ rec {
             -outputdir $out \
             ${ghcOptsArgs} \
             2>&1
-
-          ls $out
           echo "Done building module ${modSpec.moduleName}"
         '';
-
-      buildInputs =
-        [ ghc
-          rsync
-        ];
     };
 }
