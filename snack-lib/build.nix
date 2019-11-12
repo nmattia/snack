@@ -18,11 +18,11 @@ rec {
   # Returns an attribute set where the keys are all the built module names and
   # the values are the paths to the object files.
   # mainModSpec: a "main" module
-  buildMain = ghcWith: mainModSpec:
+  buildMain = ghcWith: mainModSpec: mainModName:
     buildModulesRec ghcWith
       # XXX: the main modules need special handling regarding the object name
       { "${mainModSpec.moduleName}" =
-        "${buildModule ghcWith mainModSpec}/Main.o";}
+        "${buildModule ghcWith mainModSpec}/${mainModName}.o";}
       mainModSpec.moduleImports;
 
   # returns a attrset where the keys are the module names and the values are
@@ -34,9 +34,10 @@ rec {
       { ghcWith
       , moduleSpec # The module to build
       , name # The name to give the executable
+      , mainModName
       }:
     let
-      objAttrs = buildMain ghcWith moduleSpec;
+      objAttrs = buildMain ghcWith moduleSpec mainModName;
       objList = lib.attrsets.mapAttrsToList (x: y: y) objAttrs;
       deps = allTransitiveDeps [moduleSpec];
       ghc = ghcWith deps;
