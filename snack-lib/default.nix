@@ -46,7 +46,8 @@ with rec
     let
       moduleSpec = executableMainModSpec pkgSpec;
       name = pkgSpec.packageName;
-      drv = linkMainModule { inherit moduleSpec name ghcWith; };
+      mainModName = pkgSpec.packageMainModule;
+      drv = linkMainModule { inherit moduleSpec name ghcWith mainModName; };
     in
       { out = drv.out;
         exe_path = "${drv.out}/${drv.relExePath}";

@@ -11,6 +11,7 @@ rec {
     { src ? []
     , name ? null
     , main ? null
+    , mainModule ? "Main"
     , ghcOpts ? []
     , dependencies ? []
     , extensions ? []
@@ -29,11 +30,20 @@ rec {
     { packageIsExe = ! builtins.isNull main;
       packageName = pName;
       packageMain = main;
+      packageMainModule = mainModule;
       packageSourceDirs =
         if builtins.isList src
         then src
         else [src];
-      packageGhcOpts = ghcOpts;
+      packageGhcOpts = let
+        addition =
+          if mainModule == "Main"
+          then
+            []
+          else
+            ["-main-is" mainModule];
+        in
+          ghcOpts ++ addition;
       packageExtensions = extensions;
       packageDependencies = mkPerModuleAttr dependencies;
 
