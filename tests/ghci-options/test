@@ -4,9 +4,6 @@
 set -euo pipefail
 
 test() {
-  $SNACK build
-  $SNACK run | diff golden -
-
   TMP_FILE=$(mktemp)
 
   capture_io "$TMP_FILE" main | $SNACK ghci -- -XOverloadedStrings
@@ -16,5 +13,4 @@ test() {
 }
 
 SNACK="snack --package-file ./package.nix" test
-SNACK="snack --package-file ./package.nix -l ../../snack-lib" test
 SNACK="snack --package-file ./package.yaml" test
