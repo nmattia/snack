@@ -1,0 +1,6 @@
+name: snack-extensions-test
+dependencies:
+    - text
+executable:
+    main: Main.hs
+    source-dirs: .
