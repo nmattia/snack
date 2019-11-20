@@ -234,7 +234,7 @@ parseSnackConfig = SnackConfig <$> Opts.optional
 data Command
   = Build
   | Run [String] -- Run with extra args
-  | Ghci
+  | Ghci [String]
   | Test
   | Hoogle
 
@@ -245,7 +245,9 @@ parseCommand =
     <>  Opts.command "run" (Opts.info
         ( Run <$> Opts.many (Opts.argument Opts.str (Opts.metavar "ARG"))
         ) mempty)
-    <>  Opts.command "ghci" (Opts.info (pure Ghci) mempty)
+    <>  Opts.command "ghci" (Opts.info
+        ( Ghci <$> Opts.many (Opts.argument Opts.str (Opts.metavar "ARG"))
+        ) mempty)
     <>  Opts.command "hoogle" (Opts.info (pure Hoogle) mempty)
     )
   <|> Opts.hsubparser
@@ -460,7 +462,7 @@ runCommand :: SnackConfig -> PackageFile -> Command -> IO ()
 runCommand snackCfg packageFile = \case
   Build -> S.shelly $ void $ snackBuild snackCfg packageFile
   Run args -> quiet (snackBuild snackCfg packageFile) >>= runBuildResult args
-  Ghci -> flip runExe [] =<<
+  Ghci args -> flip runExe args =<<
     ghciExePath <$> (quiet (snackGhci snackCfg packageFile))
   Test -> noTest
   Hoogle -> flip runExe [ "server", "--local" ] =<<

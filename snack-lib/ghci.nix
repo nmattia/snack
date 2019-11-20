@@ -48,6 +48,6 @@ rec {
           done
           fi
         done
-        ${ghc}/bin/ghci ${lib.strings.escapeShellArgs ghciArgs}
+        ${ghc}/bin/ghci ${lib.strings.escapeShellArgs ghciArgs} $@
         '';
 }
