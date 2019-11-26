@@ -5,10 +5,10 @@
         "homepage": "https://github.com/nmattia/niv",
         "owner": "nmattia",
         "repo": "niv",
-        "rev": "6da5c19aa220dfd840031e0cdbe83bf8f807fd50",
-        "sha256": "173gkldf4in77ksm8bgf7bhkfyc4ayddka4cgxv5361kpgyvgccw",
+        "rev": "29b4dd4dc3a126076435b83526e13f212e304ddf",
+        "sha256": "0xfdx7x1s4yzmkfa1zvbmd3js3kkhjygr51wxa0xky74zgjy7cfq",
         "type": "tarball",
-        "url": "https://github.com/nmattia/niv/archive/6da5c19aa220dfd840031e0cdbe83bf8f807fd50.tar.gz",
+        "url": "https://github.com/nmattia/niv/archive/29b4dd4dc3a126076435b83526e13f212e304ddf.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "nixpkgs": {
@@ -17,10 +17,10 @@
         "homepage": null,
         "owner": "NixOS",
         "repo": "nixpkgs-channels",
-        "rev": "3f92c2124a5595583c3a4f366fe63baf66ce21fd",
-        "sha256": "12fi90917vcjw7gi670nmajbl37ip983x338ibyrglxyf47022n3",
+        "rev": "0d357bbdb8c0f7f11a984bad54c1a3b6e7ceadf2",
+        "sha256": "02wb119rxwhz6lbd75y1schi80fplqrcxf9bykxgj5gf756qlhl6",
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs-channels/archive/3f92c2124a5595583c3a4f366fe63baf66ce21fd.tar.gz",
+        "url": "https://github.com/NixOS/nixpkgs-channels/archive/0d357bbdb8c0f7f11a984bad54c1a3b6e7ceadf2.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
