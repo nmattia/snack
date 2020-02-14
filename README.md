@@ -255,7 +255,7 @@ or fire up `ghci`, respectively.
 ### Using other versions of GHC and nixpkgs
 
 The _snack_ executable comes with a [bundled version of
-nixpkgs](./nix/nixpkgs/nixpkgs-src.json) and uses the GHC executable provided
+nixpkgs](./nix/sources.json) and uses the GHC executable provided
 by `haskell.packages.ghc822.ghcWithPackages`. You may override those default by
 providing a `snack.nix`:
 
