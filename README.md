@@ -292,7 +292,7 @@ rec {
 
   # Finally you can provide your own set of Nix packages, which should evaluate
   # to an attribute set:
-  pkgs = import ./nix;
+  pkgs = import ./nix {};
 }
 ```
 
