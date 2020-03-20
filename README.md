@@ -31,17 +31,22 @@ Make sure you have [Nix][nix] installed.
 
 ### 1. With [niv]
 
-Run this command (after you have run `niv init`):
+1. If Niv is not already configured in your project:
+
+``` shell
+$ niv init
+```
+
+2. Add the `nmattia/snack` dependency with Niv (this will add an entry in your `nix/sources.json` with the latest revision of Snack):
 
 ``` shell
 $ niv add nmattia/snack
 ```
 
-This will add an entry in your `nix/sources.json` with the latest revision of snack.
-
-To use it you will need to import the source description from `nix/sources.nix` and then import the source (which downloads and evaluates its `default.nix`) so you can access the snack-exe attribute:
+Then to use it you will need to import the source description from `nix/sources.nix` and then import the source (which downloads and evaluates its `default.nix`) so you can access the `snack-exe` attribute:
 
 ``` nix
+# nix/default.nix
 let
   sources = import ./sources.nix;
 in
@@ -53,6 +58,7 @@ in
 An example that combines this into an overlay over the `nixpkgs` also exported by `nix/sources.nix`:
 
 ``` nix
+# nix/default.nix
 { sources ? import ./sources.nix }:
 with
   { overlay = _: _:
@@ -65,10 +71,10 @@ import sources.nixpkgs
   { overlays = [ overlay ] ; config = {}; }
 ```
 
-If you save the above nix expression as `nix/default.nix` then you can have a `shell.nix` imports it as such:
-
+Then you can have a `shell.nix` import it as such:
 
 ``` nix
+# shell.nix
 with { pkgs = import ./nix {}; };
 pkgs.mkShell {
   buildInputs = [ pkgs.niv pkgs.nix pkgs.snack ];
@@ -254,44 +260,51 @@ or fire up `ghci`, respectively.
 
 ### Using other versions of GHC and nixpkgs
 
-The _snack_ executable comes with a [bundled version of
-nixpkgs](./nix/sources.json) and uses the GHC executable provided
-by `haskell.packages.ghc822.ghcWithPackages`. You may override those default by
+The _snack_ executable comes with a [bundled version of nixpkgs](./nix/sources.json) and uses the GHC executable provided
+by `haskell.packages.ghc822.ghcWithPackages`. You may override those defaults by
 providing a `snack.nix`:
 
 ``` shell
-$ snack --snack-nix ./snack.nix build
+# By default ./snack.nix is used if detected
+$ snack build
+# But you can also explicitly pass the snack file
+$ snack --snack-nix my-snack.nix build
 ```
 
-This file looks like the following:
-
-
+#### Customize the GHC version
 ``` nix
+# snack.nix
 rec {
   # If you only wish to change the version of GHC being used, set
   # `ghc-version`. The following versions are currently available:
-  #  * ghc7103
-  #  * ghc7103Binary
-  #  * ghc802
-  #  * ghc821Binary
   #  * ghc822
-  #  * ghc841
-  #  * ghc842
+  #  * ghc822Binary
+  #  * ghc844
+  #  * ghc863Binary
   #  * ghc864
+  #  * ghc865
   #  * ghcHEAD
-  #  * ghcjs
-  #  * ghcjsHEAD
-  #  * integer-simple
   # NOTE: not all versions have been tested with snack.
   ghc-version = "ghc802";
+}
+```
 
+#### Customize the `ghcWithPackages`
+``` nix
+# snack.nix
+rec {
   # Alternatively you can provide you own `ghcWithPackages`, which should have
   # the same structure as that provided by
   # `pkgs.haskell.packages.<version>.ghcWithPackages:
-  ghcWithPackages = pkgs.haskellPackages.ghcWithPackages;
+  ghcWithPackages = pkgs.haskell.packages.ghc822.ghcWithPackages;
+}
+```
 
-  # Finally you can provide your own set of Nix packages, which should evaluate
-  # to an attribute set:
+#### Customize the `pkgs`
+``` nix
+# snack.nix
+rec {
+  # Finally you can customize the whole nixpkgs used
   pkgs = import ./nix {};
 }
 ```
