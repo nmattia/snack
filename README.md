@@ -43,7 +43,7 @@ $ niv init
 $ niv add nmattia/snack
 ```
 
-Then to use it you will need to import the source description from `nix/sources.nix` and then import the source (which downloads and evaluates its `default.nix`) so you can access the `snack-exe` attribute:
+3. Then to use it you will need to import the source description from `nix/sources.nix` and then import the source (which downloads and evaluates its `default.nix`) so you can access the `snack-exe` attribute:
 
 ``` nix
 # nix/default.nix
@@ -71,7 +71,7 @@ import sources.nixpkgs
   { overlays = [ overlay ] ; config = {}; }
 ```
 
-Then you can have a `shell.nix` import it as such:
+4. Then you can have a `shell.nix` import it as such:
 
 ``` nix
 # shell.nix
