@@ -196,6 +196,36 @@ with rec
         }
     );
 
+  buildHieBios = packagePath: haskellPath:
+    let
+      flags = with lib; let
+        containingPackage = let
+          hasSource = let
+            isPrefix = xxs: xs: length xs == 0 || length xxs > 0 && head xs == head xxs && isPrefix (tail xxs) (tail xs);
+            components = p: strings.splitString "/" (builtins.toString p); # toString needed because otherwise the coercion of the path to a string will import it into the store first
+          in spec: any (isPrefix (components haskellPath)) (map components spec.packageSourceDirs) || any hasSource spec.packagePackages;
+        in findFirst hasSource (abort "Couldn't find package containing ${builtins.toString haskellPath} in ${builtins.toString packagePath} and the packages it references") (specsFromPackageFile packagePath);
+        srcdirs = let
+          sourceDirs = spec: spec.packageSourceDirs ++ (map sourceDirs spec.packagePackages);
+        in map builtins.toString (unique (sourceDirs containingPackage));
+        modspecs = if containingPackage.packageIsExe then [ (executableMainModSpec containingPackage) ] else libraryModSpecs containingPackage;
+        deps = allTransitiveDeps modspecs;
+        exts = allTransitiveExtensions modspecs;
+        opts = allTransitiveGhcOpts modspecs;
+        db = let
+          ghc = ghcWith deps;
+        in "${ghc}/lib/ghc-${ghc.version}/package.conf.d";
+      in [ "-no-global-package-db" "-package-db ${db}" ] ++ (map (p: "-package ${p}") deps) ++ (map (d: "-i${d}") srcdirs) ++ (map (e: "-X${e}") exts) ++ opts;
+    in
+      writeText "hie-bios-json" (
+        builtins.toJSON {
+          build_type = "hie-bios";
+          result = {
+            hie-bios_flags = flags;
+          };
+        }
+      );
+
 };
 {
   inherit
@@ -205,5 +235,6 @@ with rec
   buildAsLibrary
   executable
   buildHoogle
+  buildHieBios
   ;
 }

@@ -237,6 +237,7 @@ data Command
   | Ghci [String]
   | Test
   | Hoogle
+  | HieBios String
 
 parseCommand :: Opts.Parser Command
 parseCommand =
@@ -249,6 +250,9 @@ parseCommand =
         ( Ghci <$> Opts.many (Opts.argument Opts.str (Opts.metavar "ARG"))
         ) mempty)
     <>  Opts.command "hoogle" (Opts.info (pure Hoogle) mempty)
+    <>  Opts.command "hie-bios" (Opts.info
+        ( HieBios <$> Opts.argument Opts.str (Opts.metavar "FILE")
+        ) mempty)
     )
   <|> Opts.hsubparser
     ( Opts.command "test" (Opts.info (pure Test) (Opts.progDesc "Use build, run or ghci commands with test suites."))
@@ -290,6 +294,7 @@ data BuildResult
   | BuiltExecutable ExecutableBuild
   | BuiltGhci GhciBuild
   | BuiltHoogle HoogleBuild
+  | BuiltHieBios HieBiosBuild
   deriving Show
 
 instance Aeson.FromJSON BuildResult where
@@ -298,6 +303,7 @@ instance Aeson.FromJSON BuildResult where
       <|> BuiltExecutable <$> (guardBuildType "executable" v)
       <|> BuiltGhci <$> (guardBuildType "ghci" v)
       <|> BuiltHoogle <$> (guardBuildType "hoogle" v)
+      <|> BuiltHieBios <$> (guardBuildType "hie-bios" v)
       where
         guardBuildType :: FromJSON a => T.Text -> Aeson.Value -> Aeson.Parser a
         guardBuildType ty = Aeson.withObject "build result" $ \o -> do
@@ -332,6 +338,15 @@ newtype HoogleBuild = HoogleBuild
 instance FromJSON HoogleBuild where
   parseJSON = Aeson.withObject "hoogle build" $ \o ->
     HoogleBuild <$> o .: "exe_path"
+
+newtype HieBiosBuild = HieBiosBuild
+  { hieBiosFlags :: [T.Text]
+  }
+  deriving stock Show
+
+instance FromJSON HieBiosBuild where
+  parseJSON = Aeson.withObject "hie-bios build" $ \o ->
+    HieBiosBuild <$> o .: "hie-bios_flags"
 
 data NixArg = NixArg
   { argType :: NixArgType
@@ -457,6 +472,24 @@ snackHoogle snackCfg packageFile = do
       BuiltHoogle hb -> pure hb
       bs -> throwIO $ userError $ "Expected Hoogle build, got " <> show bs
 
+snackHieBios :: SnackConfig -> CanonicalFilePath -> CanonicalFilePath -> Sh HieBiosBuild
+snackHieBios snackCfg packageFile haskellFile = do
+    NixPath out <- nixBuild snackCfg
+      [ NixArg
+          { argName = "packageFile"
+          , argValue = T.pack $ unpackCanonicalFilePath packageFile
+          , argType = Arg
+          }
+      , NixArg
+          { argName = "haskellFile"
+          , argValue = T.pack $ unpackCanonicalFilePath haskellFile
+          , argType = Arg
+          }
+      ]
+      $ NixExpr "snack.buildHieBios packageFile haskellFile"
+    liftIO (BS.readFile (T.unpack out)) >>= decodeOrFail >>= \case
+      BuiltHieBios hb -> pure hb
+      bs -> throwIO $ userError $ "Expected hie-bios flags, got " <> show bs
 
 runCommand :: SnackConfig -> CanonicalFilePath -> Command -> IO ()
 runCommand snackCfg packageFile = \case
@@ -467,6 +500,15 @@ runCommand snackCfg packageFile = \case
   Test -> noTest
   Hoogle -> flip runExe [ "server", "--local" ] =<<
     hoogleExePath <$> S.shelly (snackHoogle snackCfg packageFile)
+  HieBios haskellFile -> S.shelly $ do
+    maybeBiosFile <- S.get_env "HIE_BIOS_OUTPUT"
+    biosFile <- case maybeBiosFile of
+      Nothing -> fail $ "HIE_BIOS_OUTPUT environment variable not set"
+      Just x -> pure x
+    canonicalHaskellFile <- liftIO $ mkCanonicalFilePath haskellFile
+    result <- snackHieBios snackCfg packageFile canonicalHaskellFile
+    let flags = hieBiosFlags result
+    S.writefile (S.fromText biosFile) (T.unlines flags)
 
 
 noTest :: IO a
