@@ -111,7 +111,7 @@ mkSnackLib = fmap SnackLib . mkDirPath
 --- Package description (@package.yaml@, @package.nix@)
 
 -- | Like a FilePath, but Nix friendly
-newtype PackageFile = PackageFile { unPackageFile :: FilePath }
+newtype CanonicalFilePath = CanonicalFilePath { unpackCanonicalFilePath :: FilePath }
 
 -- | What package description (@package.yaml@, @package.nix@) to use
 data PackageFileConfig
@@ -136,24 +136,24 @@ parsePackageFileConfig =
 
 -- Finding the package descriptions
 
-mkPackageFileEither :: FilePath -> IO (Either String PackageFile)
-mkPackageFileEither = fmap (fmap PackageFile) . mkFilePathEither
+mkCanonicalFilePathEither :: FilePath -> IO (Either String CanonicalFilePath)
+mkCanonicalFilePathEither = fmap (fmap CanonicalFilePath) . mkFilePathEither
 
-mkPackageFile :: FilePath -> IO PackageFile
-mkPackageFile = fmap PackageFile . mkFilePath
+mkCanonicalFilePath :: FilePath -> IO CanonicalFilePath
+mkCanonicalFilePath = fmap CanonicalFilePath . mkFilePath
 
-preparePackage :: PackageFileConfig -> IO PackageFile
+preparePackage :: PackageFileConfig -> IO CanonicalFilePath
 preparePackage = \case
-    PackageFileSpecific fp -> mkPackageFile fp
+    PackageFileSpecific fp -> mkCanonicalFilePath fp
     PackageFileDiscovery -> discoverPackageFile
 
 -- | Tries to find a package description.
-discoverPackageFile :: IO PackageFile
+discoverPackageFile :: IO CanonicalFilePath
 discoverPackageFile = do
-    eYaml <- mkPackageFileEither "package.yaml"
-    eNix <- mkPackageFileEither "package.nix"
+    eYaml <- mkCanonicalFilePathEither "package.yaml"
+    eNix <- mkCanonicalFilePathEither "package.nix"
     case (eYaml, eNix) of
-      (Right (PackageFile yaml), Right (PackageFile nix)) ->
+      (Right (CanonicalFilePath yaml), Right (CanonicalFilePath nix)) ->
         throwIO $ userError $ unlines
           [ "Please specify which package file to use, e.g.: "
           , "  snack -p " <> yaml, "or"
@@ -261,7 +261,7 @@ type Options = Options_ 'ConfigReady
 -- | The whole set of CLI options
 data Options_ c = Options
   { snackConfig :: SnackConfig_ c
-  , package :: Config c PackageFileConfig PackageFile
+  , package :: Config c PackageFileConfig CanonicalFilePath
   , command :: Command
   }
 
@@ -415,24 +415,24 @@ nixBuild snackCfg extraNixArgs nixExpr =
       : [ argName narg , argValue narg ]
     nixCfg = snackNixCfg snackCfg
 
-snackBuild :: SnackConfig -> PackageFile -> Sh [BuildResult]
+snackBuild :: SnackConfig -> CanonicalFilePath -> Sh [BuildResult]
 snackBuild snackCfg packageFile = do
     NixPath out <- nixBuild snackCfg
       [ NixArg
           { argName = "packageFile"
-          , argValue = T.pack $ unPackageFile packageFile
+          , argValue = T.pack $ unpackCanonicalFilePath packageFile
           , argType = Arg
           }
       ]
       $ NixExpr "snack.inferBuild packageFile"
     decodeOrFail =<< liftIO (BS.readFile $ T.unpack out)
 
-snackGhci :: SnackConfig -> PackageFile -> Sh GhciBuild
+snackGhci :: SnackConfig -> CanonicalFilePath -> Sh GhciBuild
 snackGhci snackCfg packageFile = do
     NixPath out <- nixBuild snackCfg
       [ NixArg
           { argName = "packageFile"
-          , argValue = T.pack $ unPackageFile packageFile
+          , argValue = T.pack $ unpackCanonicalFilePath packageFile
           , argType = Arg
           }
       ]
@@ -443,12 +443,12 @@ snackGhci snackCfg packageFile = do
       bs -> throwIO $ userError $ "Expected GHCi build, got " <> show bs
 
 
-snackHoogle :: SnackConfig -> PackageFile -> Sh HoogleBuild
+snackHoogle :: SnackConfig -> CanonicalFilePath -> Sh HoogleBuild
 snackHoogle snackCfg packageFile = do
     NixPath out <- nixBuild snackCfg
       [ NixArg
           { argName = "packageFile"
-          , argValue = T.pack $ unPackageFile packageFile
+          , argValue = T.pack $ unpackCanonicalFilePath packageFile
           , argType = Arg
           }
       ]
@@ -458,7 +458,7 @@ snackHoogle snackCfg packageFile = do
       bs -> throwIO $ userError $ "Expected Hoogle build, got " <> show bs
 
 
-runCommand :: SnackConfig -> PackageFile -> Command -> IO ()
+runCommand :: SnackConfig -> CanonicalFilePath -> Command -> IO ()
 runCommand snackCfg packageFile = \case
   Build -> S.shelly $ void $ snackBuild snackCfg packageFile
   Run args -> quiet (snackBuild snackCfg packageFile) >>= runBuildResult args
