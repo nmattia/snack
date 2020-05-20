@@ -7,7 +7,13 @@
 , haskellPackages ? pkgs.haskell.packages.${ghc-version}
 }:
 
-with pkgs;
+# Make callPackage use haskellPackages from the config
+with (let
+  overriddenPkgs = pkgs // {
+    inherit haskellPackages;
+    callPackage = pkgs.newScope overriddenPkgs;
+  };
+in overriddenPkgs);
 
 with (callPackage ./build.nix {});
 with (callPackage ./files.nix {});
