@@ -6,6 +6,16 @@ module Main (main) where
 
 import Control.Monad.IO.Class
 import Data.List (stripPrefix)
+#if __GLASGOW_HASKELL__ >= 810
+import qualified GHC.Hs
+import qualified GHC.Hs.ImpExp
+#else
+import qualified HsImpExp
+import qualified HsSyn
+import qualified Bag
+import qualified Outputable
+import System.IO (stderr)
+#endif
 #if __GLASGOW_HASKELL__ >= 804
 #else
 import Data.Semigroup
@@ -17,19 +27,14 @@ import qualified DynFlags
 import qualified FastString
 import qualified GHC
 import qualified ErrUtils
-import qualified Bag
 import qualified GHC.IO.Handle.Text as Handle
-import qualified HsImpExp
-import qualified HsSyn
 import qualified HscTypes
 import qualified Lexer
 import qualified Module
-import qualified Outputable
 import qualified Parser
 import qualified SrcLoc
 import qualified StringBuffer
 import qualified System.Process as Process
-import System.IO (stderr)
 
 main :: IO ()
 main = do
@@ -80,6 +85,12 @@ main = do
 
         runParser fp2 str Parser.parseModule >>= \case
           Lexer.POk _ (SrcLoc.L _ res) -> pure res
+#if __GLASGOW_HASKELL__ >= 810
+          Lexer.PFailed pst -> liftIO $ do
+            let errors = Lexer.getErrorMessages pst dflags2
+            ErrUtils.printBagOfErrors dflags2 errors
+            HscTypes.throwErrors errors
+#else
 #if __GLASGOW_HASKELL__ >= 804
           Lexer.PFailed _ spn e -> liftIO $ do
 #else
@@ -95,12 +106,18 @@ main = do
               ]
             throwIO $ HscTypes.mkSrcErr $
               Bag.unitBag $ ErrUtils.mkPlainErrMsg dflags2 spn e
+#endif
 
     -- Extract the imports from the parsed module
     let imports' =
           map (\(SrcLoc.L _ idecl) ->
+#if __GLASGOW_HASKELL__ >= 810
+                  let SrcLoc.L _ n = GHC.Hs.ImpExp.ideclName idecl
+                  in Module.moduleNameString n) (GHC.Hs.hsmodImports res)
+#else
                   let SrcLoc.L _ n = HsImpExp.ideclName idecl
                   in Module.moduleNameString n) (HsSyn.hsmodImports res)
+#endif
 
     -- here we pretend that @show :: [String] -> String@ outputs JSON
     print imports'
