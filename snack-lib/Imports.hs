@@ -64,7 +64,15 @@ main = do
         -- XXX: We need to preprocess the file so that all extensions are
         -- loaded
         (dflags2, fp2) <- liftIO $
+#if __GLASGOW_HASKELL__ >= 808
+          do
+            eitherResult <- DriverPipeline.preprocess hsc_env fp Nothing Nothing
+            case eitherResult of
+              Left errors -> throwIO $ HscTypes.mkSrcErr errors
+              Right result -> return result
+#else
           DriverPipeline.preprocess hsc_env (fp, Nothing)
+#endif
         _ <- GHC.setSessionDynFlags dflags2
 
         -- Read the file that we want to parse
