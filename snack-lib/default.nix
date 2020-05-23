@@ -3,8 +3,8 @@
 # TODO: make sure that filters for "base" are airtight
 # TODO: document the sh*t out of these functions
 { pkgs
-, ghc-version ? "ghc864"
-, haskellPackages ? pkgs.haskell.packages.${ghc-version}
+, ghc-version ? null
+, haskellPackages ? if ghc-version == null then pkgs.haskellPackages else pkgs.haskell.packages.${ghc-version}
 }:
 
 # Make callPackage use haskellPackages from the config
