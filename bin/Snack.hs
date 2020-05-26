@@ -1,5 +1,5 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE MonadFailDesugaring #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
@@ -9,6 +9,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
+#if __GLASGOW_HASKELL__ < 806
+{-# LANGUAGE MonadFailDesugaring #-}
+#endif
 
 module Main (main) where
 
@@ -19,7 +22,6 @@ import Data.Aeson (FromJSON, (.:))
 import Data.FileEmbed (embedStringFile)
 import Data.List (intercalate)
 import Data.Maybe (mapMaybe)
-import Data.Semigroup ((<>))
 import Data.String.Interpolate
 import Shelly (Sh)
 import System.Directory (doesFileExist, doesPathExist, canonicalizePath)
@@ -32,6 +34,9 @@ import qualified Data.Map as Map
 import qualified Data.Text as T
 import qualified Options.Applicative as Opts
 import qualified Shelly as S
+#if !MIN_VERSION_base(4,11,0)
+import Data.Semigroup ((<>))
+#endif
 
 main :: IO ()
 main = do
