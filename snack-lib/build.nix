@@ -130,6 +130,7 @@ rec {
       builder = writeScript "${objectName}-builder"
         ''
           #!${bash}/bin/bash
+          set -e
           echo "Building module ${modSpec.moduleName}"
           echo "Local imports are:"
           for foo in $imports; do
