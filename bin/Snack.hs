@@ -111,7 +111,7 @@ mkSnackLib = fmap SnackLib . mkDirPath
 --- Package description (@package.yaml@, @package.nix@)
 
 -- | Like a FilePath, but Nix friendly
-newtype PackageFile = PackageFile { unPackageFile :: FilePath }
+newtype CanonicalFilePath = CanonicalFilePath { unpackCanonicalFilePath :: FilePath }
 
 -- | What package description (@package.yaml@, @package.nix@) to use
 data PackageFileConfig
@@ -136,24 +136,24 @@ parsePackageFileConfig =
 
 -- Finding the package descriptions
 
-mkPackageFileEither :: FilePath -> IO (Either String PackageFile)
-mkPackageFileEither = fmap (fmap PackageFile) . mkFilePathEither
+mkCanonicalFilePathEither :: FilePath -> IO (Either String CanonicalFilePath)
+mkCanonicalFilePathEither = fmap (fmap CanonicalFilePath) . mkFilePathEither
 
-mkPackageFile :: FilePath -> IO PackageFile
-mkPackageFile = fmap PackageFile . mkFilePath
+mkCanonicalFilePath :: FilePath -> IO CanonicalFilePath
+mkCanonicalFilePath = fmap CanonicalFilePath . mkFilePath
 
-preparePackage :: PackageFileConfig -> IO PackageFile
+preparePackage :: PackageFileConfig -> IO CanonicalFilePath
 preparePackage = \case
-    PackageFileSpecific fp -> mkPackageFile fp
+    PackageFileSpecific fp -> mkCanonicalFilePath fp
     PackageFileDiscovery -> discoverPackageFile
 
 -- | Tries to find a package description.
-discoverPackageFile :: IO PackageFile
+discoverPackageFile :: IO CanonicalFilePath
 discoverPackageFile = do
-    eYaml <- mkPackageFileEither "package.yaml"
-    eNix <- mkPackageFileEither "package.nix"
+    eYaml <- mkCanonicalFilePathEither "package.yaml"
+    eNix <- mkCanonicalFilePathEither "package.nix"
     case (eYaml, eNix) of
-      (Right (PackageFile yaml), Right (PackageFile nix)) ->
+      (Right (CanonicalFilePath yaml), Right (CanonicalFilePath nix)) ->
         throwIO $ userError $ unlines
           [ "Please specify which package file to use, e.g.: "
           , "  snack -p " <> yaml, "or"
@@ -237,6 +237,7 @@ data Command
   | Ghci [String]
   | Test
   | Hoogle
+  | HieBios String
 
 parseCommand :: Opts.Parser Command
 parseCommand =
@@ -249,6 +250,9 @@ parseCommand =
         ( Ghci <$> Opts.many (Opts.argument Opts.str (Opts.metavar "ARG"))
         ) mempty)
     <>  Opts.command "hoogle" (Opts.info (pure Hoogle) mempty)
+    <>  Opts.command "hie-bios" (Opts.info
+        ( HieBios <$> Opts.argument Opts.str (Opts.metavar "FILE")
+        ) mempty)
     )
   <|> Opts.hsubparser
     ( Opts.command "test" (Opts.info (pure Test) (Opts.progDesc "Use build, run or ghci commands with test suites."))
@@ -261,7 +265,7 @@ type Options = Options_ 'ConfigReady
 -- | The whole set of CLI options
 data Options_ c = Options
   { snackConfig :: SnackConfig_ c
-  , package :: Config c PackageFileConfig PackageFile
+  , package :: Config c PackageFileConfig CanonicalFilePath
   , command :: Command
   }
 
@@ -290,6 +294,7 @@ data BuildResult
   | BuiltExecutable ExecutableBuild
   | BuiltGhci GhciBuild
   | BuiltHoogle HoogleBuild
+  | BuiltHieBios HieBiosBuild
   deriving Show
 
 instance Aeson.FromJSON BuildResult where
@@ -298,6 +303,7 @@ instance Aeson.FromJSON BuildResult where
       <|> BuiltExecutable <$> (guardBuildType "executable" v)
       <|> BuiltGhci <$> (guardBuildType "ghci" v)
       <|> BuiltHoogle <$> (guardBuildType "hoogle" v)
+      <|> BuiltHieBios <$> (guardBuildType "hie-bios" v)
       where
         guardBuildType :: FromJSON a => T.Text -> Aeson.Value -> Aeson.Parser a
         guardBuildType ty = Aeson.withObject "build result" $ \o -> do
@@ -332,6 +338,15 @@ newtype HoogleBuild = HoogleBuild
 instance FromJSON HoogleBuild where
   parseJSON = Aeson.withObject "hoogle build" $ \o ->
     HoogleBuild <$> o .: "exe_path"
+
+newtype HieBiosBuild = HieBiosBuild
+  { hieBiosFlags :: [T.Text]
+  }
+  deriving stock Show
+
+instance FromJSON HieBiosBuild where
+  parseJSON = Aeson.withObject "hie-bios build" $ \o ->
+    HieBiosBuild <$> o .: "hie-bios_flags"
 
 data NixArg = NixArg
   { argType :: NixArgType
@@ -415,24 +430,24 @@ nixBuild snackCfg extraNixArgs nixExpr =
       : [ argName narg , argValue narg ]
     nixCfg = snackNixCfg snackCfg
 
-snackBuild :: SnackConfig -> PackageFile -> Sh [BuildResult]
+snackBuild :: SnackConfig -> CanonicalFilePath -> Sh [BuildResult]
 snackBuild snackCfg packageFile = do
     NixPath out <- nixBuild snackCfg
       [ NixArg
           { argName = "packageFile"
-          , argValue = T.pack $ unPackageFile packageFile
+          , argValue = T.pack $ unpackCanonicalFilePath packageFile
           , argType = Arg
           }
       ]
       $ NixExpr "snack.inferBuild packageFile"
     decodeOrFail =<< liftIO (BS.readFile $ T.unpack out)
 
-snackGhci :: SnackConfig -> PackageFile -> Sh GhciBuild
+snackGhci :: SnackConfig -> CanonicalFilePath -> Sh GhciBuild
 snackGhci snackCfg packageFile = do
     NixPath out <- nixBuild snackCfg
       [ NixArg
           { argName = "packageFile"
-          , argValue = T.pack $ unPackageFile packageFile
+          , argValue = T.pack $ unpackCanonicalFilePath packageFile
           , argType = Arg
           }
       ]
@@ -443,12 +458,12 @@ snackGhci snackCfg packageFile = do
       bs -> throwIO $ userError $ "Expected GHCi build, got " <> show bs
 
 
-snackHoogle :: SnackConfig -> PackageFile -> Sh HoogleBuild
+snackHoogle :: SnackConfig -> CanonicalFilePath -> Sh HoogleBuild
 snackHoogle snackCfg packageFile = do
     NixPath out <- nixBuild snackCfg
       [ NixArg
           { argName = "packageFile"
-          , argValue = T.pack $ unPackageFile packageFile
+          , argValue = T.pack $ unpackCanonicalFilePath packageFile
           , argType = Arg
           }
       ]
@@ -457,8 +472,26 @@ snackHoogle snackCfg packageFile = do
       BuiltHoogle hb -> pure hb
       bs -> throwIO $ userError $ "Expected Hoogle build, got " <> show bs
 
+snackHieBios :: SnackConfig -> CanonicalFilePath -> CanonicalFilePath -> Sh HieBiosBuild
+snackHieBios snackCfg packageFile haskellFile = do
+    NixPath out <- nixBuild snackCfg
+      [ NixArg
+          { argName = "packageFile"
+          , argValue = T.pack $ unpackCanonicalFilePath packageFile
+          , argType = Arg
+          }
+      , NixArg
+          { argName = "haskellFile"
+          , argValue = T.pack $ unpackCanonicalFilePath haskellFile
+          , argType = Arg
+          }
+      ]
+      $ NixExpr "snack.buildHieBios packageFile haskellFile"
+    liftIO (BS.readFile (T.unpack out)) >>= decodeOrFail >>= \case
+      BuiltHieBios hb -> pure hb
+      bs -> throwIO $ userError $ "Expected hie-bios flags, got " <> show bs
 
-runCommand :: SnackConfig -> PackageFile -> Command -> IO ()
+runCommand :: SnackConfig -> CanonicalFilePath -> Command -> IO ()
 runCommand snackCfg packageFile = \case
   Build -> S.shelly $ void $ snackBuild snackCfg packageFile
   Run args -> quiet (snackBuild snackCfg packageFile) >>= runBuildResult args
@@ -467,6 +500,15 @@ runCommand snackCfg packageFile = \case
   Test -> noTest
   Hoogle -> flip runExe [ "server", "--local" ] =<<
     hoogleExePath <$> S.shelly (snackHoogle snackCfg packageFile)
+  HieBios haskellFile -> S.shelly $ do
+    maybeBiosFile <- S.get_env "HIE_BIOS_OUTPUT"
+    biosFile <- case maybeBiosFile of
+      Nothing -> fail $ "HIE_BIOS_OUTPUT environment variable not set"
+      Just x -> pure x
+    canonicalHaskellFile <- liftIO $ mkCanonicalFilePath haskellFile
+    result <- snackHieBios snackCfg packageFile canonicalHaskellFile
+    let flags = hieBiosFlags result
+    S.writefile (S.fromText biosFile) (T.unlines flags)
 
 
 noTest :: IO a
