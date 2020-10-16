@@ -3,6 +3,10 @@
 
 # Snack
 
+**SNACK IS UNMAINTAINED!!**
+
+_It was a fun proof of concept but I don't have the time to take it further._
+
 _snack_ is a build tool that uses the power of Nix to build Haskell projects.
 
 ***Snack requires Nix >= 2.0***
